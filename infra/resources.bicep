@@ -20,41 +20,39 @@ param onPremGatewayIp string
 @description('IPsec pre-shared key.')
 param sharedKey string
 
-@description('Deploy a small Linux test VM to validate on-prem reachability.')
-param deployTestVm bool
+@description('Publisher email for the API Management instance (owner notifications).')
+param apimPublisherEmail string
 
-@description('Admin username for the test VM.')
-param vmAdminUsername string
+@description('Publisher/organization name for the API Management instance.')
+param apimPublisherName string
 
-@secure()
-@description('Admin password for the test VM.')
-param vmAdminPassword string
-
-@description('Source IP allowed to SSH to the test VM. Empty disables inbound SSH.')
-param allowedSshSourceIp string
+@description('Scale-out units for API Management Premium v2.')
+param apimCapacity int = 1
 
 // ---- Addressing (clear of on-prem 192.168.50.0/24 and WAN 192.168.1.0/24) ----
 var vnetAddressPrefix = '10.100.0.0/16'
 var gatewaySubnetPrefix = '10.100.0.0/27'
-var workloadSubnetPrefix = '10.100.1.0/24'
+var apimSubnetPrefix = '10.100.1.0/24'
 
+// NSG required on the API Management injection subnet. Premium v2 simplified injection
+// only mandates outbound 443 to Azure Key Vault; platform defaults cover the rest.
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
-  name: 'nsg-${resourceToken}'
+  name: 'nsg-apim-${resourceToken}'
   location: location
   tags: tags
   properties: {
-    securityRules: empty(allowedSshSourceIp) ? [] : [
+    securityRules: [
       {
-        name: 'Allow-SSH-inbound'
+        name: 'Allow-KeyVault-outbound'
         properties: {
           priority: 1000
-          direction: 'Inbound'
+          direction: 'Outbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefix: allowedSshSourceIp
+          sourceAddressPrefix: 'VirtualNetwork'
           sourcePortRange: '*'
-          destinationAddressPrefix: '*'
-          destinationPortRange: '22'
+          destinationAddressPrefix: 'AzureKeyVault'
+          destinationPortRange: '443'
         }
       }
     ]
@@ -77,12 +75,20 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
         }
       }
       {
-        name: 'workload'
+        name: 'apim'
         properties: {
-          addressPrefix: workloadSubnetPrefix
+          addressPrefix: apimSubnetPrefix
           networkSecurityGroup: {
             id: nsg.id
           }
+          delegations: [
+            {
+              name: 'apim-delegation'
+              properties: {
+                serviceName: 'Microsoft.Web/hostingEnvironments'
+              }
+            }
+          ]
         }
       }
     ]
@@ -177,82 +183,32 @@ resource connection 'Microsoft.Network/connections@2024-05-01' = {
   }
 }
 
-// ---- Optional test VM (lean validation) ----
-resource vmPip 'Microsoft.Network/publicIPAddresses@2024-05-01' = if (deployTestVm) {
-  name: 'pip-vm-${resourceToken}'
+// ---- API Management (Premium v2), VNet-injected for private ingress/egress ----
+// Injected in Internal mode: the gateway is reachable only via a private IP inside the
+// VNet, giving the private-only, no-public-endpoint posture the Option B pattern requires.
+resource apim 'Microsoft.ApiManagement/service@2025-09-01-preview' = {
+  name: 'apim-${resourceToken}'
   location: location
   tags: tags
   sku: {
-    name: 'Standard'
+    name: 'PremiumV2'
+    capacity: apimCapacity
+  }
+  identity: {
+    type: 'SystemAssigned'
   }
   properties: {
-    publicIPAllocationMethod: 'Static'
-  }
-}
-
-resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = if (deployTestVm) {
-  name: 'nic-${resourceToken}'
-  location: location
-  tags: tags
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          privateIPAllocationMethod: 'Dynamic'
-          subnet: {
-            id: '${vnet.id}/subnets/workload'
-          }
-          publicIPAddress: {
-            id: vmPip.id
-          }
-        }
-      }
-    ]
-  }
-}
-
-resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = if (deployTestVm) {
-  name: 'vm-${resourceToken}'
-  location: location
-  tags: tags
-  properties: {
-    hardwareProfile: {
-      vmSize: 'Standard_B1s'
-    }
-    osProfile: {
-      computerName: 'testvm'
-      adminUsername: vmAdminUsername
-      adminPassword: vmAdminPassword
-      linuxConfiguration: {
-        disablePasswordAuthentication: false
-      }
-    }
-    storageProfile: {
-      imageReference: {
-        publisher: 'Canonical'
-        offer: '0001-com-ubuntu-server-jammy'
-        sku: '22_04-lts-gen2'
-        version: 'latest'
-      }
-      osDisk: {
-        createOption: 'FromImage'
-        managedDisk: {
-          storageAccountType: 'StandardSSD_LRS'
-        }
-      }
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: nic.id
-        }
-      ]
+    publisherEmail: apimPublisherEmail
+    publisherName: apimPublisherName
+    virtualNetworkType: 'Internal'
+    virtualNetworkConfiguration: {
+      subnetResourceId: '${vnet.id}/subnets/apim'
     }
   }
 }
 
 output vpnGatewayPublicIp string = vpnGatewayPip.properties.ipAddress
 output vnetAddressSpace string = vnetAddressPrefix
-output testVmPrivateIp string = deployTestVm ? nic.properties.ipConfigurations[0].properties.privateIPAddress : ''
-output testVmPublicIp string = deployTestVm ? vmPip.properties.ipAddress : ''
+output vpnConnectionName string = connection.name
+output apimName string = apim.name
+output apimGatewayUrl string = apim.properties.gatewayUrl

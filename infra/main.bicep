@@ -22,18 +22,14 @@ param onPremGatewayIp string = ''
 @description('IPsec pre-shared key (PSK) shared with the on-prem device.')
 param sharedKey string
 
-@description('Deploy a small Linux test VM in Azure to validate reachability to on-prem.')
-param deployTestVm bool = true
+@description('Publisher email for the API Management instance (owner notifications).')
+param apimPublisherEmail string
 
-@description('Admin username for the test VM.')
-param vmAdminUsername string = 'azureuser'
+@description('Publisher/organization name for the API Management instance.')
+param apimPublisherName string = 'Contoso'
 
-@secure()
-@description('Admin password for the test VM (12-72 chars, 3 of: lower/upper/digit/symbol).')
-param vmAdminPassword string = ''
-
-@description('Source IP allowed to SSH to the test VM (your public IP). Empty disables SSH inbound.')
-param allowedSshSourceIp string = ''
+@description('Scale-out units for API Management Premium v2.')
+param apimCapacity int = 1
 
 var tags = { 'azd-env-name': environmentName }
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
@@ -55,10 +51,9 @@ module resources 'resources.bicep' = {
     onPremGatewayFqdn: onPremGatewayFqdn
     onPremGatewayIp: onPremGatewayIp
     sharedKey: sharedKey
-    deployTestVm: deployTestVm
-    vmAdminUsername: vmAdminUsername
-    vmAdminPassword: vmAdminPassword
-    allowedSshSourceIp: allowedSshSourceIp
+    apimPublisherEmail: apimPublisherEmail
+    apimPublisherName: apimPublisherName
+    apimCapacity: apimCapacity
   }
 }
 
@@ -66,5 +61,6 @@ output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = rg.name
 output VPN_GATEWAY_PUBLIC_IP string = resources.outputs.vpnGatewayPublicIp
 output VNET_ADDRESS_SPACE string = resources.outputs.vnetAddressSpace
-output TEST_VM_PRIVATE_IP string = resources.outputs.testVmPrivateIp
-output TEST_VM_PUBLIC_IP string = resources.outputs.testVmPublicIp
+output VPN_CONNECTION_NAME string = resources.outputs.vpnConnectionName
+output APIM_NAME string = resources.outputs.apimName
+output APIM_GATEWAY_URL string = resources.outputs.apimGatewayUrl

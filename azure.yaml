@@ -3,8 +3,8 @@ name: ai-hybrid-data-sources
 metadata:
   template: ai-hybrid-data-sources-optionb@0.1.0
 
-# Option B (lean): network-level S2S connectivity for Foundry -> on-prem ingress.
-# Infrastructure-only; no application services are deployed in the lean profile.
+# Option B: network-level S2S connectivity plus the APIM Premium v2 control plane
+# (VNet-injected, Internal mode) that fronts both egress (models) and ingress (on-prem data).
 infra:
   provider: bicep
   path: infra

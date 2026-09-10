@@ -274,21 +274,17 @@ ip route show table 220
 
 ### End-to-end reachability
 
-If you deployed the optional Linux test VM (`deployTestVm=true` in the Bicep), it lives in
-the `10.100.1.0/24` workload subnet. Ping it **from a LAN host** (source `192.168.50.x`) so
-the packet matches the tunnel selectors:
-
-```bash
-# From a machine on the 192.168.50.0/24 LAN:
-ping <test-vm-private-ip>
-```
+There's no test VM in this deployment. The `10.100.1.0/24` subnet now hosts the
+VNet-injected **APIM Premium v2** gateway (`Internal` mode), which holds a private IP there.
+APIM is a load-balanced service and may not answer ICMP, so the authoritative tunnel checks
+are `ipsec statusall` (above) and the Azure connection status below.
 
 On the Azure side, the connection status should show **Connected**:
 
 ```bash
 # On your workstation:
 az network vpn-connection show \
-  --name "$(azd env get-value VPN_CONNECTION_NAME 2>/dev/null || echo cn-<token>)" \
+  --name "$(azd env get-value VPN_CONNECTION_NAME)" \
   --resource-group "$(azd env get-value AZURE_RESOURCE_GROUP)" \
   --query connectionStatus -o tsv
 ```

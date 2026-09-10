@@ -6,3 +6,6 @@ onprem/ipsec.secrets
 *.env
 *.pem
 *.key
+
+# Compiled Bicep output
+infra/main.json

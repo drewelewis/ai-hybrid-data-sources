@@ -16,12 +16,6 @@
     },
     "onPremGatewayIp": {
       "value": "${ONPREM_GATEWAY_IP}"
-    },
-    "allowedSshSourceIp": {
-      "value": "${ALLOWED_SSH_SOURCE_IP}"
-    },
-    "deployTestVm": {
-      "value": true
     }
   }
 }
