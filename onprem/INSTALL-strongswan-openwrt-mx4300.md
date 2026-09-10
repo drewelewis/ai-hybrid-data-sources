@@ -5,11 +5,112 @@ IPsec endpoint for this repo's **Option B** Site-to-Site tunnel to the Azure VPN
 
 It pairs with the two config files already in this folder:
 
-- [onprem/ipsec.conf](ipsec.conf) — the strongSwan connection (`conn azure`)
+- [onprem/ipsec.conf](ipsec.conf) — the legacy strongSwan connection (`conn azure`, strongSwan ≤ 5.x)
 - [onprem/ipsec.secrets.example](ipsec.secrets.example) — the pre-shared-key template
 
 > This guide assumes OpenWrt is **already installed** on the MX4300 and you can reach it.
 > It does **not** cover flashing OpenWrt onto the stock Linksys firmware.
+
+---
+
+## ⚠️ First: which toolchain? (your OpenWrt version decides)
+
+OpenWrt changed both the package manager and the strongSwan generation, which changes *how*
+you configure the tunnel. Detect what you have:
+
+```sh
+command -v apk opkg      # apk = OpenWrt 25.x+ ; opkg = 24.x and earlier
+swanctl --version        # works => strongSwan 6 (swanctl)
+ipsec version            # works => strongSwan 5.x (legacy)
+```
+
+| | **OpenWrt ≤ 24.x** (legacy) | **OpenWrt 25.x+** (verified on 25.12.5) |
+| --- | --- | --- |
+| Package manager | `opkg` | **`apk`** |
+| strongSwan | 5.x — `ipsec`/starter/stroke | **6.x — `swanctl` only** (`ipsec` command removed) |
+| Config | `/etc/ipsec.conf` + `/etc/ipsec.secrets` | **`/etc/swanctl/conf.d/azure.conf`** |
+| Service | `/etc/init.d/ipsec` | **`/etc/init.d/swanctl`** |
+| Status | `ipsec statusall` | **`swanctl --list-sas`** |
+
+- **On 25.x+**, use **Section A** below in place of Steps 3, 4, 7, and 8.
+- **Steps 1–2 (LAN), 5 (firewall), and 6 (flow offloading) are identical** for both.
+
+---
+
+## Section A — OpenWrt 25.x / strongSwan 6 (apk + swanctl)
+
+Do Steps 1–2 first (connect + set LAN to `192.168.50.0/24`), then:
+
+**A1. Install (apk):**
+```sh
+apk update
+apk add strongswan-default strongswan-mod-openssl
+# fallback if a proposal won't load:  apk add strongswan-full
+swanctl --version    # confirm strongSwan 6.x (ignore any "plugin failed to load" noise)
+```
+
+**A2. Write `/etc/swanctl/conf.d/azure.conf`** (the default `swanctl.conf` already has
+`include conf.d/*.conf`). Replace the three placeholders — `<AZURE_VPN_GATEWAY_PUBLIC_IP>` is
+`azd env get-value VPN_GATEWAY_PUBLIC_IP`, and the PSK must match the azd `sharedKey` exactly:
+
+```sh
+cat > /etc/swanctl/conf.d/azure.conf <<'EOF'
+connections {
+    azure {
+        version = 2
+        local_addrs  = %any
+        remote_addrs = <AZURE_VPN_GATEWAY_PUBLIC_IP>
+        proposals = aes256-sha256-modp2048
+        rekey_time = 28800s
+        dpd_delay = 30s
+        local  { auth = psk  id = <ONPREM_PUBLIC_IP_OR_FQDN> }
+        remote { auth = psk  id = <AZURE_VPN_GATEWAY_PUBLIC_IP> }
+        children {
+            azure {
+                local_ts  = 192.168.50.0/24
+                remote_ts = 10.100.0.0/16
+                esp_proposals = aes256-sha256
+                start_action = start
+                dpd_action = restart
+                rekey_time = 3600s
+            }
+        }
+    }
+}
+secrets {
+    ike-azure {
+        id = <AZURE_VPN_GATEWAY_PUBLIC_IP>
+        secret = "REPLACE_WITH_SHARED_KEY"
+    }
+}
+EOF
+chmod 600 /etc/swanctl/conf.d/azure.conf
+vi /etc/swanctl/conf.d/azure.conf     # fill placeholders; edit the PSK directly (keep the quotes)
+```
+
+**A3. Enable the service (boot persistence) + load:**
+```sh
+/etc/init.d/swanctl enable
+/etc/init.d/swanctl start
+swanctl --load-all          # expect: loaded connection 'azure' + loaded 1 secret
+```
+
+**A4. Apply Steps 5 (firewall) and 6 (flow offloading)** below — both mandatory.
+
+**A5. Verify:**
+```sh
+swanctl --list-sas          # success = ESTABLISHED + INSTALLED 192.168.50.0/24 === 10.100.0.0/16
+```
+> `start_action = start` brings the tunnel up on load. If you run
+> `swanctl --initiate --child azure` and see *"not establishing … due to existing duplicate"*,
+> that's **success** — a CHILD_SA is already up. Behind a double NAT the SA shows
+> `TUNNEL-in-UDP` on port 4500 (NAT-T) — expected.
+
+Azure side (allow ~1 min for status to catch up):
+```sh
+az network vpn-connection show --name "$(azd env get-value VPN_CONNECTION_NAME)" \
+  --resource-group "$(azd env get-value AZURE_RESOURCE_GROUP)" --query connectionStatus -o tsv
+```
 
 ---
 
@@ -20,7 +121,7 @@ flowchart LR
     LAN["On-prem LAN<br/>192.168.50.0/24"] --- MX["MX4300 (OpenWrt)<br/>strongSwan"]
     MX -- "IKEv2 / NAT-T (UDP 500 + 4500)" --> ISP["ISP router<br/>(double NAT)"]
     ISP --> Internet(("Internet"))
-    Internet --> VNG["Azure VPN Gateway<br/>VpnGw1"]
+    Internet --> VNG["Azure VPN Gateway<br/>VpnGw1AZ"]
     VNG --- VNet["Azure VNet<br/>10.100.0.0/16"]
 ```
 
@@ -94,6 +195,9 @@ ping -c 3 downloads.openwrt.org
 ---
 
 ## 3. Install strongSwan
+
+> **OpenWrt 25.x+ (apk / strongSwan 6):** skip Steps 3, 4, 7, and 8 — use **Section A** above.
+> The steps below are the legacy `opkg` / strongSwan 5.x path.
 
 Update the package index and install strongSwan with the OpenSSL crypto backend (fast AES
 and DH on the MX4300):

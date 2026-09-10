@@ -102,6 +102,8 @@ resource vpnGatewayPip 'Microsoft.Network/publicIPAddresses@2024-05-01' = {
   sku: {
     name: 'Standard'
   }
+  // AZ VPN gateway SKUs require a zone-redundant public IP.
+  zones: [ '1', '2', '3' ]
   properties: {
     publicIPAllocationMethod: 'Static'
   }
@@ -116,9 +118,10 @@ resource vpnGateway 'Microsoft.Network/virtualNetworkGateways@2024-05-01' = {
     vpnType: 'RouteBased'
     enableBgp: false
     activeActive: false
+    // Non-AZ VpnGw SKUs are retired; only the zone-redundant *AZ SKUs can be created.
     sku: {
-      name: 'VpnGw1'
-      tier: 'VpnGw1'
+      name: 'VpnGw1AZ'
+      tier: 'VpnGw1AZ'
     }
     ipConfigurations: [
       {

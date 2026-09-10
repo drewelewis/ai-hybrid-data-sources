@@ -15,8 +15,8 @@ param onPremAddressPrefixes array = [ '192.168.50.0/24' ]
 @description('DDNS FQDN of the on-prem VPN device. Leave empty to use onPremGatewayIp instead.')
 param onPremGatewayFqdn string = ''
 
-@description('Public IP of the on-prem VPN device. Used only when onPremGatewayFqdn is empty.')
-param onPremGatewayIp string = ''
+@description('Public IP of your on-prem VPN device (the local network gateway address). Used when onPremGatewayFqdn is empty.')
+param onPremGatewayIp string
 
 @secure()
 @description('IPsec pre-shared key (PSK) shared with the on-prem device.')
@@ -25,8 +25,8 @@ param sharedKey string
 @description('Publisher email for the API Management instance (owner notifications).')
 param apimPublisherEmail string
 
-@description('Publisher/organization name for the API Management instance.')
-param apimPublisherName string = 'Contoso'
+@description('Publisher/organization name shown on the API Management instance.')
+param apimPublisherName string
 
 @description('Scale-out units for API Management Premium v2.')
 param apimCapacity int = 1

@@ -13,9 +13,6 @@
     },
     "onPremGatewayFqdn": {
       "value": "${ONPREM_GATEWAY_FQDN}"
-    },
-    "onPremGatewayIp": {
-      "value": "${ONPREM_GATEWAY_IP}"
     }
   }
 }

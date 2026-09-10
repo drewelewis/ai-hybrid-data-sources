@@ -10,10 +10,14 @@ It solves two problems at once, without exposing any private system to the publi
 2. Cloud-hosted agents (Foundry or Copilot Studio) that need to **reach on-premises
    databases**.
 
-> **What `azd up` deploys:** the **Foundry Option A** baseline — a hub VNet, a VpnGw1
+> **What `azd up` deploys:** the **Foundry Option A** baseline — a hub VNet, a **VpnGw1AZ**
 > Site-to-Site VPN to your on-prem network, and **APIM Premium v2** VNet-injected in
 > `Internal` mode. Copilot Studio **Option A** reuses the same tunnel. Every other option is
 > documented here as guidance you layer on yourself.
+>
+> **Region note:** APIM Premium v2 isn't offered in every region (e.g. **not** East US / West US
+> as of 2026-09) — deploy to a supported region such as **Canada Central**. The gateway uses a
+> zone-redundant **VpnGw1AZ** SKU with a zone-redundant public IP (non-AZ `VpnGw` SKUs are retired).
 
 ## Contents
 
@@ -374,8 +378,8 @@ the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/).
 | APIM (production) | Standard v2 | $0.9589 | ~$700 |
 | APIM (VNet-injected) | Premium v2 (per unit) | $1.9178 | ~$1,400 |
 | APIM self-hosted gateway | per gateway | $0.3425 | ~$250 |
-| VPN Gateway | VpnGw1 | $0.19 | ~$139 |
-| VPN Gateway | VpnGw2 | $0.49 | ~$358 |
+| VPN Gateway | VpnGw1AZ | $0.21 | ~$153 |
+| VPN Gateway | VpnGw2AZ | $0.54 | ~$394 |
 | S2S tunnel connection | any VpnGw | $0.015 | ~$11 |
 
 ### Total by ingress footprint
@@ -390,9 +394,9 @@ out — and **Copilot Option C** is APIM-only.
 | --- | --- | --- |
 | Maps to | Foundry Option B | Foundry Option A · Copilot Option A |
 | APIM tier | Standard v2 (~$700) | Premium v2, 1 unit (~$1,400) |
-| Gateway / connectivity | 1 self-hosted gateway (~$250) | VpnGw1 + 1 tunnel (~$150) |
+| Gateway / connectivity | 1 self-hosted gateway (~$250) | VpnGw1AZ + 1 tunnel (~$164) |
 | On-prem hardware | Existing servers ($0 Azure) | None |
-| **Azure fixed subtotal** | **~$950 / month** | **~$1,550 / month** |
+| **Azure fixed subtotal** | **~$950 / month** | **~$1,565 / month** |
 | AI usage | Token-based (same) | Token-based (same) |
 
 - **Egress adds no fixed networking cost** — it reuses the same APIM instance; you pay only
@@ -442,7 +446,7 @@ azd down
 
 > Infrastructure-as-code assets live under `infra/`, with `azure.yaml` at the repository
 > root driving `azd`. The deployed baseline provisions **Foundry Option A** — the VNet,
-> VpnGw1 gateway, local gateway, and IPsec connection, **plus** an **APIM Premium v2**
+> VpnGw1AZ gateway, local gateway, and IPsec connection, **plus** an **APIM Premium v2**
 > instance VNet-injected in `Internal` mode — the single control plane both platforms reuse
 > (Copilot Option A rides the same tunnel). On-prem strongSwan config lives under `onprem/`
 > — see [onprem/INSTALL-strongswan-openwrt-mx4300.md](onprem/INSTALL-strongswan-openwrt-mx4300.md)
