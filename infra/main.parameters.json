@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "onPremAddressPrefixes": {
+      "value": [ "192.168.50.0/24" ]
+    },
+    "onPremGatewayFqdn": {
+      "value": "${ONPREM_GATEWAY_FQDN}"
+    },
+    "onPremGatewayIp": {
+      "value": "${ONPREM_GATEWAY_IP}"
+    },
+    "allowedSshSourceIp": {
+      "value": "${ALLOWED_SSH_SOURCE_IP}"
+    },
+    "deployTestVm": {
+      "value": true
+    }
+  }
+}

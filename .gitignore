@@ -1,0 +1,8 @@
+# azd
+.azure/
+
+# Local secrets / on-prem
+onprem/ipsec.secrets
+*.env
+*.pem
+*.key

@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: ai-hybrid-data-sources
+metadata:
+  template: ai-hybrid-data-sources-optionb@0.1.0
+
+# Option B (lean): network-level S2S connectivity for Foundry -> on-prem ingress.
+# Infrastructure-only; no application services are deployed in the lean profile.
+infra:
+  provider: bicep
+  path: infra
+  module: main
