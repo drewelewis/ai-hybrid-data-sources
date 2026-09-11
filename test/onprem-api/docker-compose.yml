@@ -1,0 +1,7 @@
+services:
+  onprem-api:
+    image: mccutchen/go-httpbin:latest
+    container_name: onprem-api
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
