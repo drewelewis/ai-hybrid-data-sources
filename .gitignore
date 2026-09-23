@@ -9,3 +9,8 @@ onprem/ipsec.secrets
 
 # Compiled Bicep output
 infra/main.json
+infra/foundry-spoke/main.json
+peering/peering.json
+
+# Local scratch notes
+untracked_notes.md

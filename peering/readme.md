@@ -19,13 +19,20 @@ resource names/tokens as needed.
 
 ```mermaid
 flowchart LR
-    Spoke["Spoke VNet<br/>(e.g. Foundry 172.16.0.0/16)"] -- "VNet peering" --> Hub
+    subgraph Spoke["Foundry spoke VNet 172.16.0.0/16"]
+        Foundry["Azure AI Foundry<br/>agent (private)"]
+        Deps["Dependencies<br/>Cosmos · AI Search · Storage · Key Vault"]
+        DNS["Private DNS<br/>azure-api.net → 10.100.1.4"]
+        Foundry --- Deps
+    end
     subgraph Hub["Hub VNet 10.100.0.0/16"]
         APIM["APIM Premium v2<br/>(Internal) 10.100.1.4"]
         GW["VPN Gateway"]
     end
-    GW -- "S2S IPsec" --> OnPrem["On-prem 192.168.50.0/24"]
+    Foundry -- "VNet peering" --> APIM
+    DNS -. "resolves APIM" .- Foundry
     APIM --> GW
+    GW -- "S2S IPsec" --> OnPrem["On-prem 192.168.50.0/24"]
 ```
 
 A peered spoke reaches **APIM in the hub** over plain peering. APIM then reaches on-prem over
@@ -132,11 +139,17 @@ curl -sk https://apim-uisvrqjctoste.azure-api.net/onprem/json   # should return 
 
 | Setting | Value |
 | --- | --- |
-| Spoke VNet | `172.16.0.0/16` (agent `172.16.0.0/24`, PE `172.16.1.0/24`), Canada Central |
-| Peering | regional, both directions (Step 1) |
+| Spoke VNet | `172.16.0.0/16` (agent `172.16.0.0/24`, PE `172.16.1.0/24`), **Sweden Central** |
+| Peering | **global** (spoke region ≠ hub region), both directions (Step 1) |
 | Gateway transit | **not required** (agent calls APIM in the hub) |
 | DNS | `azure-api.net` A record `apim-uisvrqjctoste` → `10.100.1.4`, linked to the spoke |
 | Result | Foundry agent → peering → hub APIM → tunnel → on-prem container |
+
+> **Region choice (real deployment).** The spoke lives in **Sweden Central**, not the hub's
+> Canada Central, because the Foundry template's dependencies (**Cosmos DB** and **AI Search**)
+> had no capacity for this subscription in Canada Central or East US — both failed with
+> `ServiceUnavailable` / `ResourcesForSkuUnavailable`. Sweden Central had capacity for both,
+> so the spoke deploys there and **globally** peers back to the Canada Central hub.
 
 Non-overlap check: `172.16.0.0/16` vs hub `10.100.0.0/16` and on-prem `192.168.50.0/24` — clear.
 

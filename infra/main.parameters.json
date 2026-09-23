@@ -8,6 +8,9 @@
     "location": {
       "value": "${AZURE_LOCATION}"
     },
+    "appServiceLocation": {
+      "value": "${APP_SERVICE_LOCATION}"
+    },
     "onPremAddressPrefixes": {
       "value": [ "192.168.50.0/24" ]
     },

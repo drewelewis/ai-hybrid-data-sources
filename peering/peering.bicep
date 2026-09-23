@@ -26,8 +26,32 @@ param apimPrivateIp string
 @description('Only enable if the spoke needs DIRECT on-prem private-IP access via the hub VPN gateway. Not needed for the APIM path.')
 param enableGatewayTransit bool = false
 
-var hubVnetId = resourceId(hubResourceGroup, 'Microsoft.Network/virtualNetworks', hubVnetName)
-var spokeVnetId = resourceId(spokeResourceGroup, 'Microsoft.Network/virtualNetworks', spokeVnetName)
+@description('Also publish the Foundry model deployment as an APIM backend (hub DNS link + backend/API + RBAC).')
+param wireFoundryBackend bool = false
+
+@description('Foundry (AIServices) resource group. Required when wireFoundryBackend=true.')
+param foundryResourceGroup string = ''
+
+@description('Foundry account name. Required when wireFoundryBackend=true.')
+param foundryAccountName string = ''
+
+@description('Foundry inference endpoint, e.g. https://acct.cognitiveservices.azure.com/. Required when wireFoundryBackend=true.')
+param foundryEndpoint string = ''
+
+@description('Foundry model deployment name (for the sample call URL).')
+param foundryDeploymentName string = ''
+
+@description('Entra tenant id whose tokens the Foundry API accepts. Required when wireFoundryBackend=true.')
+param entraTenantId string = ''
+
+@description('Accepted JWT audience (API app registration App ID URI or client id). Required when wireFoundryBackend=true.')
+param jwtAudience string = ''
+
+@description('Browser origins allowed to call the Foundry API (SPA dev/prod origins).')
+param allowedCorsOrigins array = [ 'http://localhost:5173' ]
+
+var hubVnetId = resourceId(subscription().subscriptionId, hubResourceGroup, 'Microsoft.Network/virtualNetworks', hubVnetName)
+var spokeVnetId = resourceId(subscription().subscriptionId, spokeResourceGroup, 'Microsoft.Network/virtualNetworks', spokeVnetName)
 
 module hubToSpoke 'modules/peering-link.bicep' = {
   name: 'peer-hub-to-spoke'
@@ -62,3 +86,40 @@ module apimDns 'modules/apim-private-dns.bicep' = {
     spokeVnetId: spokeVnetId
   }
 }
+
+// --- Optional: publish the Foundry model as an APIM backend (repeatable, no CLI patches) ---
+
+// Link the Foundry private DNS zones to the hub so APIM resolves the model's private endpoint.
+module foundryDnsHubLink 'modules/foundry-dns-hub-link.bicep' = if (wireFoundryBackend) {
+  name: 'foundry-dns-hub-link'
+  scope: resourceGroup(foundryResourceGroup)
+  params: {
+    hubVnetId: hubVnetId
+  }
+}
+
+// Create the APIM backend + Azure OpenAI API with managed-identity auth to the Foundry endpoint.
+module apimFoundryApi 'modules/apim-foundry-api.bicep' = if (wireFoundryBackend) {
+  name: 'apim-foundry-api'
+  scope: resourceGroup(hubResourceGroup)
+  params: {
+    apimName: apimName
+    foundryEndpoint: foundryEndpoint
+    entraTenantId: entraTenantId
+    jwtAudience: jwtAudience
+    allowedCorsOrigins: allowedCorsOrigins
+  }
+}
+
+// Grant APIM's managed identity access to the Foundry model deployment.
+module foundryRbac 'modules/foundry-role-assignment.bicep' = if (wireFoundryBackend) {
+  name: 'foundry-rbac'
+  scope: resourceGroup(foundryResourceGroup)
+  params: {
+    foundryAccountName: foundryAccountName
+    principalId: apimFoundryApi!.outputs.apimPrincipalId
+  }
+}
+
+@description('Sample call URL for the Foundry model through APIM (empty unless wired).')
+output foundryCallExample string = wireFoundryBackend ? 'https://${apimName}.azure-api.net/openai/deployments/${foundryDeploymentName}/chat/completions?api-version=2024-02-01' : ''

@@ -10,13 +10,23 @@ It solves two problems at once, without exposing any private system to the publi
 2. Cloud-hosted agents (Foundry or Copilot Studio) that need to **reach on-premises
    databases**.
 
-> **What `azd up` deploys:** the **Foundry Option A** baseline — a hub VNet, a **VpnGw1AZ**
-> Site-to-Site VPN to your on-prem network, and **APIM Premium v2** VNet-injected in
-> `Internal` mode. Copilot Studio **Option A** reuses the same tunnel. Every other option is
-> documented here as guidance you layer on yourself.
+> **What `azd up` deploys:** the **Foundry Option A** baseline as **one hub and two spokes**:
 >
-> **Region note:** APIM Premium v2 isn't offered in every region (e.g. **not** East US / West US
-> as of 2026-09) — deploy to a supported region such as **Canada Central**. The gateway uses a
+> - **Selected hub region:** VNet, **VpnGw1AZ** Site-to-Site VPN, and **APIM Premium v2**
+>   VNet-injected in `Internal` mode.
+> - **Canada East spoke:** a globally peered VNet with an empty Linux App Service. Its
+>   application is maintained and deployed from a separate repository.
+> - **Sweden Central spoke:** the globally peered, network-isolated Azure AI Foundry
+>   deployment and its private dependencies. An existing connected deployment is reused.
+> - **Microsoft Entra ID:** separate development and production SPA registrations plus one
+>   shared protected API registration and `Chat.Invoke` delegated scope.
+>
+> Copilot Studio **Option A** reuses the hub tunnel. Every other option is documented here
+> as guidance you layer on yourself.
+>
+> **Region note:** APIM Premium v2 isn't offered in every region. Its subscription SKU API can
+> eliminate missing or formally restricted regions, but does not report transient physical
+> capacity. The deployment therefore stages the final APIM instance first. The gateway uses a
 > zone-redundant **VpnGw1AZ** SKU with a zone-redundant public IP (non-AZ `VpnGw` SKUs are retired).
 
 ## Contents
@@ -159,8 +169,9 @@ line-of-sight to on-premises hosts by private IP.
 - **Network-layer attack surface:** opening network reach (even private) demands careful
   segmentation and firewall/NSG rules; a misconfiguration has a larger blast radius than a
   single API gateway.
-- **Ongoing operations:** manage gateway HA, tunnels, BGP/routing, and certificate/key
-  rotation.
+- **Ongoing operations:** monitor the VPN gateway and tunnel, maintain static routes, and
+  rotate the IPsec pre-shared key. BGP and certificate rotation apply only if you extend
+  this baseline to use them.
 
 ```mermaid
 flowchart LR
@@ -170,16 +181,38 @@ flowchart LR
         DB --- Edge
     end
 
-    subgraph Azure["Azure (hub region)"]
-        subgraph Hub["Hub Virtual Network"]
+    subgraph CanadaCentral["Canada Central — hub"]
+        subgraph Hub["Hub VNet — 10.100.0.0/16"]
+            VPN["VpnGw1AZ"]
+            HubFabric["Hub VNet routing"]
             APIM["APIM Premium v2<br/>(VNet injected, Internal)"]
+            VPN --- HubFabric
+            HubFabric --- APIM
         end
-        Foundry["Azure AI Foundry"]
-        APIM --> Foundry
     end
 
-    Edge -- "ExpressRoute / S2S VPN (private)" --> APIM
+    subgraph CanadaEast["Canada East — App Service spoke"]
+        AppVNet["App spoke VNet<br/>10.101.0.0/16"]
+        App["Linux App Service<br/>(application deployed separately)"]
+        App --- AppVNet
+    end
+
+    subgraph SwedenCentral["Sweden Central — Foundry spoke"]
+        FoundryVNet["agent-vnet<br/>172.16.0.0/16"]
+        Foundry["Azure AI Foundry<br/>and private dependencies"]
+        Foundry --- FoundryVNet
+    end
+
+    Edge <-->|"S2S IPsec VPN"| VPN
+    AppVNet <-->|"global VNet peering"| HubFabric
+    FoundryVNet <-->|"global VNet peering"| HubFabric
 ```
+
+The regions are intentionally split by service availability and subscription quota:
+APIM Premium v2 and the VPN hub run in **Canada Central**, the B1 App Service plan runs in
+**Canada East**, and the existing Foundry deployment and its private dependencies run in
+**Sweden Central**. Both spokes use global VNet peering to reach the hub; neither is deployed
+inside the hub VNet.
 
 ### Option B — APIM self-hosted gateway
 
@@ -366,9 +399,11 @@ flowchart LR
 ## Cost comparison
 
 Monthly estimates use **East US retail (USD)**, **730 hours/month**, pay-as-you-go rates.
-They **exclude** data transfer and Azure AI Foundry **token consumption**, which are
-usage-based and the **same regardless of option**. Indicative as of 2026-09 — confirm with
-the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/).
+The table compares the connectivity footprints only. It **excludes** the Canada East App
+Service plan, Foundry spoke resources (Cosmos DB, AI Search, ACR, monitoring, storage),
+global VNet-peering transfer, other data transfer, and Azure AI Foundry token consumption.
+Those costs are workload- and region-dependent. Indicative as of 2026-09 — confirm with the
+[Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/).
 
 ### Fixed component rates
 
@@ -419,26 +454,126 @@ out — and **Copilot Option C** is APIM-only.
 
 - [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
 - [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- [PowerShell 7 (`pwsh`)](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)
+  for the cross-platform regional preflight and placement picker
 - An Azure subscription with rights to create resource groups and the resources above
+- Microsoft Entra permission to create app registrations (`Application.ReadWrite.All`) for
+  the signed-in identity running `azd up`
 - For the **self-hosted gateway** option (Foundry Option B): a reachable container host
   (Docker or Kubernetes) on-premises
 
 ### Deploy
 
-```bash
-azd auth login          # authenticate
-azd up                  # provision infrastructure + deploy the reference system
+Run the read-only regional preflight before the first deployment to a subscription, after a
+capacity error, or when changing regions:
+
+```powershell
+az extension add --name quota --upgrade
+
+.\scripts\regional-preflight.ps1 `
+  -SubscriptionId <subscription-id> `
+  -HubRegions canadacentral,centralus `
+  -AppRegions canadaeast,eastus2 `
+  -FoundryRegions swedencentral,centralus
 ```
 
-`azd up` prompts for an environment name, subscription, and region — plus the **IPsec
-pre-shared key** and an **APIM publisher email** — then provisions the recommended baseline
-(**Foundry Option A**: the VNet + S2S VPN path with **APIM Premium v2** VNet-injected).
+The version-controlled regional preflight skill writes its detailed report to
+`.azure/preflight/regional-preflight.json`. It queries the subscription-scoped APIM SKU and
+restriction API in addition to advertised services, models, and quota. `PASS` confirms the
+queried requirement; `CONDITIONAL` or `UNKNOWN` means Azure does not expose enough information
+to guarantee deploy-time capacity; `FAIL` eliminates that placement. The preflight is
+read-only and does not run `azd up`, register providers, or request quota. By default it selects the
+first generally available `GlobalStandard` small chat model for each Foundry candidate
+region; use `-ModelSelection Exact` only when a specific model and version are required.
+The Foundry deployment currently defaults to `gpt-5.4-mini` version `2026-03-17`, and
+`FOUNDRY_MODEL` / `FOUNDRY_MODEL_VERSION` can override that choice.
+
+```bash
+az login                # authenticate Azure CLI and select the target subscription
+az account set --subscription <subscription-id>
+azd auth login --tenant-id <tenant-id> # authenticate azd to the same tenant
+azd up                  # provision the shared infrastructure
+```
+
+`azd up` prompts for an environment name and subscription, then the `preup` hook prints
+`Checking advertised regional services, subscription SKU restrictions, models, and quotas...`
+and runs a fresh, read-only global preflight. Unsupported and formally restricted candidates
+are removed before the placement picker selects and persists the hub, application, Foundry,
+and small-model choices in the active `azd` environment. A listed hub is eligible for an APIM
+create attempt; it is not capacity-approved. Its preferred ordering starts with:
+
+| Placement | Default |
+| --- | --- |
+| Hub / VPN / APIM | Canada Central |
+| Application App Service | Canada East |
+| Foundry spoke | Sweden Central |
+| Foundry model | `gpt-5.4-mini` `2026-03-17` (`GlobalStandard`) |
+
+Every run refreshes regional evidence before the picker displays the saved placement and
+defaults to reusing it. A preflight execution error stops `azd up` before provisioning;
+`CONDITIONAL` and `UNKNOWN` evidence remains visible because Azure does not expose physical
+capacity for every SKU. ARM `validate` and `what-if` do not exercise APIM's transient capacity
+gate. The deployment therefore creates the final VNet-injected APIM instance immediately
+after its NSG and hub VNet. VPN, App Service, DNS, identity, and Foundry provisioning starts
+only after APIM reaches `Succeeded`, so an APIM rejection fails early without creating those
+dependent resources. Changing placement on an already provisioned environment can replace or
+add resources, so review changes before answering **No** to the reuse prompt. In
+non-interactive runs, or with `AZD_SKIP_REGION_PICKER=true`, the hook still runs preflight,
+then uses saved values when they remain viable and fills missing or failed values from the
+fresh candidate list.
+
+The `preup` hook first binds `AZURE_SUBSCRIPTION_ID` and `AZURE_TENANT_ID` to the active
+`az account show` context. It also compares the signed-in `az` and `azd` identities and
+stops before provisioning with an explicit `azd auth login --tenant-id ...` command when
+they differ. `az` and `azd` have independent authentication caches; logging in to one does
+not switch the other.
+
+After placement selection, `azd up` prompts for the **IPsec pre-shared key** and an **APIM
+publisher email**, then provisions the recommended baseline
+(**Foundry Option A**: the VNet + S2S VPN path with **APIM Premium v2** VNet-injected). By
+default, the picker provisions an empty Linux App Service in a **Canada East** spoke VNet
+and peers that VNet globally with the selected hub. The separate application
+repository owns build and code deployment to this App Service; this repository only creates
+its hosting and network infrastructure. `azd up` then **also deploys a network-isolated Foundry spoke**
+(foundry-samples template 19) and peers it into the hub, so a single command stands up the
+shared infrastructure. That step adds ~45–60 min and ongoing cost (Cosmos DB, AI Search
+**Basic**, ACR Premium, a model); opt out by answering **No** at the prompt, running
+non-interactively (CI), or setting `AZD_SKIP_FOUNDRY=true`. The recommended Foundry default
+is **Sweden Central** (it peers cross-region back to the hub): the template's Cosmos DB and
+AI Search dependencies had no capacity for this subscription in Canada Central or East US.
+On subsequent runs, the post-provision hook detects a Foundry resource group already
+connected to the hub, reuses it, and only reconciles peering, DNS, and APIM configuration
+instead of redeploying the Foundry resources. Set `FOUNDRY_RG` only when intentionally
+targeting a different Foundry resource group.
+
+`az` and `azd` keep separate subscription context. The pre-provision hook compares the
+subscription selected for the `azd` environment with `az account show` and stops before
+creating resources if they differ. Select the same subscription at the `azd up` prompt;
+the post-provision Foundry and peering scripts then pass that subscription explicitly to
+every Azure CLI command.
+
 Because Premium v2 is an always-on, higher-cost tier, tear the environment down when you're
 not actively testing and re-run `azd up` when you need it:
 
 ```bash
 azd down
 ```
+
+The main Bicep deployment also creates three environment-specific Microsoft Entra app
+registrations:
+
+| Registration | Purpose | Redirect URI |
+| --- | --- | --- |
+| `ai-hybrid-data-sources-<env>-spa-dev` | Local `npm run dev` client | `http://localhost:5173` |
+| `ai-hybrid-data-sources-<env>-spa-prod` | Production App Service client | The provisioned `https://app-<token>.azurewebsites.net` origin |
+| `ai-hybrid-data-sources-<env>-api` | Shared protected API and `Chat.Invoke` scope | None |
+
+`azd env get-values` exports `ENTRA_DEV_SPA_CLIENT_ID`,
+`ENTRA_PROD_SPA_CLIENT_ID`, `ENTRA_API_CLIENT_ID`, `ENTRA_API_AUDIENCE`, and
+`ENTRA_API_SCOPE`. The React app uses the development SPA ID with `npm run dev`; its GitHub
+Actions production build uses the production SPA ID. There is no `npm run prod`: production
+is compiled with `npm run build`, and App Service launches the deployed Express server with
+`npm start`.
 
 ---
 
@@ -447,8 +582,10 @@ azd down
 > Infrastructure-as-code assets live under `infra/`, with `azure.yaml` at the repository
 > root driving `azd`. The deployed baseline provisions **Foundry Option A** — the VNet,
 > VpnGw1AZ gateway, local gateway, and IPsec connection, **plus** an **APIM Premium v2**
-> instance VNet-injected in `Internal` mode — the single control plane both platforms reuse
-> (Copilot Option A rides the same tunnel). On-prem strongSwan config lives under `onprem/`
+> instance VNet-injected in `Internal` mode — the single control plane both platforms reuse.
+> It also creates an empty App Service in a globally peered Canada East spoke; application
+> code is deployed from its own repository. Copilot Option A rides the same tunnel. On-prem
+> strongSwan config lives under `onprem/`
 > — see [onprem/INSTALL-strongswan-openwrt-mx4300.md](onprem/INSTALL-strongswan-openwrt-mx4300.md)
 > for the router-side tunnel setup.
 

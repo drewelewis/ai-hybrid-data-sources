@@ -39,6 +39,10 @@ ipsec version            # works => strongSwan 5.x (legacy)
 
 ## Section A — OpenWrt 25.x / strongSwan 6 (apk + swanctl)
 
+> **Config file location:** all tunnel settings live in **`/etc/swanctl/conf.d/azure.conf`**
+> (loaded via the default `include conf.d/*.conf` in `/etc/swanctl/swanctl.conf`). The PSK is in
+> the `secrets {}` block of that same file. This is the only file you edit on-prem.
+
 Do Steps 1–2 first (connect + set LAN to `192.168.50.0/24`), then:
 
 **A1. Install (apk):**
@@ -72,6 +76,7 @@ connections {
                 esp_proposals = aes256-sha256
                 start_action = start
                 dpd_action = restart
+                close_action = restart
                 rekey_time = 3600s
             }
         }

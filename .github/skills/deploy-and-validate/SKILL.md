@@ -10,13 +10,21 @@ description: 'Deploy this repo''s Azure infrastructure with azd and validate the
 - Validate that the IPsec tunnel is connected and APIM injected correctly.
 
 ## Before you start
-- Ensure `azd`, `az`, and Bicep are installed and authenticated (`azd auth login`).
+- Ensure `azd`, `az`, and Bicep are installed. Authenticate `az`, select the target
+  subscription, then authenticate `azd` to the same tenant with
+  `azd auth login --tenant-id <tenant-id>`.
 - Compile first: `az bicep build --file infra/main.bicep`; fix errors before deploying.
 - Only run `azd up`/`azd down` when the user explicitly asks.
 
 ## Deploy
-1. `azd up` — answer the prompts (env name, subscription, region, IPsec `sharedKey`,
-   `apimPublisherEmail`). Premium v2 provisioning takes time.
+1. `azd up` — answer the environment/subscription prompts. The `preup` hook runs a fresh
+   regional preflight, removes unsupported or subscription-restricted candidates, then opens
+   the hub, application, Foundry, and model placement picker. A listed hub is eligible for an
+   APIM create attempt, not capacity-approved. Confirm the IPsec `sharedKey` and
+   `apimPublisherEmail` prompts. The final VNet-injected APIM resource is staged first as the
+   decisive live probe; VPN, App Service, DNS, identity, and Foundry continue only after APIM
+   succeeds. Existing environments default to reusing saved choices only when the fresh
+   read-only checks still consider them eligible.
 2. Capture outputs: `azd env get-values` — note `VPN_GATEWAY_PUBLIC_IP`,
    `VPN_CONNECTION_NAME`, `APIM_NAME`, `APIM_GATEWAY_URL`, `VNET_ADDRESS_SPACE`.
 

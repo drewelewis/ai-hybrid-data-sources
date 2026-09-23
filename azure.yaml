@@ -10,10 +10,29 @@ infra:
   path: infra
   module: main
 
-# After `azd up` provisions the hub, optionally offer to deploy a network-isolated Foundry
-# spoke (foundry-samples template 19) and peer it in. Interactive prompt, default No; skipped
-# in CI or when AZD_SKIP_FOUNDRY=true. Teardown stays manual (azd down is NOT hooked).
+# After `azd up` provisions the hub, deploy a network-isolated Foundry spoke (foundry-samples
+# template 19) and peer it in BY DEFAULT, so `azd up` stands up the whole solution. Interactive
+# prompt defaults to Yes; opt out by answering No, in CI, or when AZD_SKIP_FOUNDRY=true.
+# Teardown stays manual (azd down is NOT hooked).
 hooks:
+  preup:
+    posix:
+      shell: sh
+      run: ./scripts/select-deployment-configuration.sh
+      interactive: true
+    windows:
+      shell: pwsh
+      run: ./scripts/select-deployment-configuration.ps1
+      interactive: true
+  preprovision:
+    posix:
+      shell: sh
+      run: ./scripts/validate-azure-context.sh
+      interactive: false
+    windows:
+      shell: pwsh
+      run: ./scripts/validate-azure-context.ps1
+      interactive: false
   postup:
     posix:
       shell: sh
