@@ -1,0 +1,128 @@
+<mxfile host="app.diagrams.net" modified="2026-09-24T13:30:00.000Z" agent="Copilot SDK" version="24.7.17">
+  <diagram id="apim-network-comparison" name="APIM networking comparison">
+    <mxGraphModel dx="1400" dy="1500" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="canvas" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="1400" height="1500" as="geometry"/>
+        </mxCell>
+        <mxCell id="title" value="APIM private networking" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Segoe UI;fontSize=30;fontStyle=1;fontColor=#242424;" vertex="1" parent="1">
+          <mxGeometry x="60" y="28" width="900" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Premium v2 gateway injection compared with Standard v2 Private Link and outbound VNet integration" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Segoe UI;fontSize=16;fontColor=#616161;" vertex="1" parent="1">
+          <mxGeometry x="62" y="72" width="1220" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="metadata" value="Purpose: compare gateway placement and private traffic paths   |   Version 1.0   |   Updated 2026-09-24" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Segoe UI;fontSize=11;fontColor=#616161;" vertex="1" parent="1">
+          <mxGeometry x="62" y="105" width="1200" height="24" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="premium-heading" value="1  Premium v2: gateway injected into the customer VNet" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Segoe UI;fontSize=21;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="160" width="900" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-rule" value="" style="shape=line;strokeColor=#0078D4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="202" width="1280" height="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-control" value="Microsoft managed APIM control plane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A19F9D;dashed=1;fontFamily=Segoe UI;fontColor=#616161;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="520" y="225" width="310" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-vnet" value="Customer private network: Foundry spoke and hub VNet" style="swimlane;html=1;rounded=0;startSize=34;fillColor=#F3F9FD;swimlaneFillColor=#FFFFFF;strokeColor=#8A8886;strokeWidth=1;fontFamily=Segoe UI;fontColor=#323130;fontStyle=1;fontSize=13;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="85" y="300" width="1010" height="275" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-foundry" value="Foundry Agent Service" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/foundry-agent-service.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="165" y="390" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-subnet" value="APIM injection subnet" style="swimlane;html=1;rounded=0;startSize=26;fillColor=#F3F9FD;swimlaneFillColor=#FFFFFF;strokeColor=#0078D4;dashed=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="345" width="230" height="175" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-apim" value="API Management Premium v2" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/api-management.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="480" y="405" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-vpn" value="Virtual Network Gateway" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/virtual-network-gateway.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="800" y="390" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-onprem" value="On-premises&#xa;Private APIs and MCP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8A8886;fontFamily=Segoe UI;fontColor=#323130;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="390" width="150" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-callout" value="Full private gateway data plane: the APIM gateway is inside the VNet boundary." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F0FFF4;strokeColor=#107C10;fontFamily=Segoe UI;fontColor=#0B6A0B;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="330" y="615" width="740" height="44" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="standard-heading" value="2  Standard v2: private connections to a Microsoft hosted gateway" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Segoe UI;fontSize=21;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="720" width="1050" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-rule" value="" style="shape=line;strokeColor=#0078D4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="762" width="1280" height="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-vnet" value="Customer private network: Foundry spoke and hub VNet" style="swimlane;html=1;rounded=0;startSize=34;fillColor=#F3F9FD;swimlaneFillColor=#FFFFFF;strokeColor=#8A8886;strokeWidth=1;fontFamily=Segoe UI;fontColor=#323130;fontStyle=1;fontSize=13;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="85" y="825" width="820" height="400" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-service" value="Microsoft hosted APIM service" style="swimlane;html=1;rounded=0;startSize=30;fillColor=#FAF9F8;swimlaneFillColor=#FFFFFF;strokeColor=#8A8886;strokeWidth=1;fontFamily=Segoe UI;fontColor=#323130;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="825" width="300" height="205" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-foundry" value="Foundry Agent Service" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/foundry-agent-service.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="150" y="920" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-pe" value="Private Endpoint" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/private-endpoint.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="450" y="920" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-apim" value="API Management Standard v2" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/api-management.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="900" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-integration" value="Outbound VNet integration subnet&#xa;Delegated to Microsoft.Web/serverFarms" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0078D4;dashed=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="390" y="1090" width="250" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-vpn" value="Virtual Network Gateway" style="shape=image;html=1;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=assets/azure-icons/virtual-network-gateway.svg;fontFamily=Segoe UI;fontSize=12;fontColor=#323130;" vertex="1" parent="1">
+          <mxGeometry x="760" y="1095" width="64" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-onprem" value="On-premises&#xa;Private APIs and MCP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8A8886;fontFamily=Segoe UI;fontColor=#323130;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="1095" width="170" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-callout" value="Private API path, but the APIM gateway compute remains outside the customer VNet." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF9E6;strokeColor=#D83B01;fontFamily=Segoe UI;fontColor=#8A2C0D;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="255" y="1260" width="890" height="44" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="premium-edge-1" value="Private peering" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="premium-foundry" target="premium-apim">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-edge-2" value="Private route" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="premium-apim" target="premium-vpn">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-edge-3" value="IPsec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="premium-vpn" target="premium-onprem">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="premium-control-edge" value="Management" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#605E5C;strokeWidth=1;dashed=1;endArrow=open;endFill=0;fontFamily=Segoe UI;fontColor=#616161;fontSize=10;" edge="1" parent="1" source="premium-control" target="premium-apim">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-edge-1" value="Private peering" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="standard-foundry" target="standard-pe">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-edge-2" value="Private Link" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="standard-pe" target="standard-apim">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-edge-3" value="Outbound VNet integration" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="standard-apim" target="standard-integration">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-edge-4" value="Private route" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="standard-integration" target="standard-vpn">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="standard-edge-5" value="IPsec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0078D4;strokeWidth=2;endArrow=block;endFill=1;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" edge="1" parent="1" source="standard-vpn" target="standard-onprem">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-private" value="Solid blue: private API data path" style="text;html=1;align=left;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1360" width="240" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-control" value="Dashed gray: Azure management relationship" style="text;html=1;align=left;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="350" y="1360" width="300" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-boundary" value="Outlined container: placement boundary" style="text;html=1;align=left;fontFamily=Segoe UI;fontColor=#323130;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1360" width="260" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="reference" value="References: Azure Well-Architected architecture diagrams; Azure architecture icons; APIM virtual network concepts" style="text;html=1;align=left;fontFamily=Segoe UI;fontColor=#616161;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1420" width="1220" height="24" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

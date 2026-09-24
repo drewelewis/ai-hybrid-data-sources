@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1500" viewBox="0 0 1400 1500" role="img" aria-labelledby="diagram-title diagram-desc">
+  <title id="diagram-title">APIM private networking comparison</title>
+  <desc id="diagram-desc">Microsoft-style stacked comparison showing Premium v2 inside a customer VNet and Standard v2 connected to a customer VNet using Private Link and outbound VNet integration.</desc>
+  <defs>
+    <marker id="private-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0078d4"/>
+    </marker>
+    <marker id="control-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10" fill="none" stroke="#605e5c" stroke-width="1.2"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .title { font-size: 30px; font-weight: 600; fill: #242424; }
+      .subtitle { font-size: 16px; fill: #616161; }
+      .metadata { font-size: 11px; fill: #616161; }
+      .section-title { font-size: 21px; font-weight: 600; fill: #0078d4; }
+      .boundary-title { font-size: 13px; font-weight: 600; }
+      .node-title { font-size: 12px; font-weight: 600; }
+      .node-sub { font-size: 11px; fill: #616161; }
+      .edge-label { font-size: 11px; fill: #323130; }
+      .private-edge { fill: none; stroke: #0078d4; stroke-width: 2.5; marker-end: url(#private-arrow); }
+      .control-edge { fill: none; stroke: #605e5c; stroke-width: 1.5; stroke-dasharray: 7 6; marker-end: url(#control-arrow); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="1500" fill="#ffffff"/>
+  <text x="60" y="60" class="title">APIM private networking</text>
+  <text x="62" y="92" class="subtitle">Premium v2 gateway injection compared with Standard v2 Private Link and outbound VNet integration</text>
+  <text x="62" y="120" class="metadata">Purpose: compare gateway placement and private traffic paths  |  Version 1.0  |  Updated 2026-09-24</text>
+
+  <text x="60" y="185" class="section-title">1  Premium v2: gateway injected into the customer VNet</text>
+  <line x1="60" y1="205" x2="1340" y2="205" stroke="#0078d4" stroke-width="2"/>
+
+  <rect x="520" y="225" width="310" height="44" fill="#ffffff" stroke="#a19f9d" stroke-dasharray="7 6"/>
+  <text x="675" y="252" text-anchor="middle" font-size="12" fill="#616161">Microsoft managed APIM control plane</text>
+
+  <rect x="85" y="300" width="1010" height="275" fill="#ffffff" stroke="#8a8886"/>
+  <rect x="85" y="300" width="1010" height="34" fill="#f3f9fd" stroke="#8a8886"/>
+  <text x="105" y="322" class="boundary-title">Customer private network: Foundry spoke and hub VNet</text>
+
+  <image href="assets/azure-icons/foundry-agent-service.svg" x="168" y="388" width="64" height="64"/>
+  <text x="200" y="475" text-anchor="middle" class="node-title">Foundry Agent Service</text>
+  <text x="200" y="494" text-anchor="middle" class="node-sub">Spoke VNet</text>
+
+  <rect x="400" y="345" width="230" height="175" fill="#ffffff" stroke="#0078d4" stroke-dasharray="7 6"/>
+  <text x="515" y="369" text-anchor="middle" class="node-sub">APIM injection subnet</text>
+  <image href="assets/azure-icons/api-management.svg" x="483" y="397" width="64" height="64"/>
+  <text x="515" y="484" text-anchor="middle" class="node-title">API Management Premium v2</text>
+  <text x="515" y="503" text-anchor="middle" class="node-sub">Gateway inside VNet</text>
+
+  <image href="assets/azure-icons/virtual-network-gateway.svg" x="800" y="388" width="64" height="64"/>
+  <text x="832" y="475" text-anchor="middle" class="node-title">Virtual Network Gateway</text>
+  <text x="832" y="494" text-anchor="middle" class="node-sub">S2S VPN</text>
+
+  <rect x="1150" y="390" width="150" height="72" fill="#ffffff" stroke="#8a8886"/>
+  <text x="1225" y="420" text-anchor="middle" class="node-title">On-premises</text>
+  <text x="1225" y="441" text-anchor="middle" class="node-sub">Private APIs and MCP</text>
+
+  <path d="M232 420 H390" class="private-edge"/>
+  <text x="310" y="407" text-anchor="middle" class="edge-label">Private peering</text>
+  <path d="M547 420 H790" class="private-edge"/>
+  <text x="669" y="407" text-anchor="middle" class="edge-label">Private route</text>
+  <path d="M864 420 H1140" class="private-edge"/>
+  <text x="1002" y="407" text-anchor="middle" class="edge-label">IPsec tunnel</text>
+  <path d="M675 269 V378 H547" class="control-edge"/>
+  <text x="687" y="290" class="node-sub">Management</text>
+
+  <rect x="330" y="615" width="740" height="44" fill="#f0fff4" stroke="#107c10"/>
+  <text x="700" y="642" text-anchor="middle" font-size="13" font-weight="600" fill="#0b6a0b">Full private gateway data plane: the APIM gateway is inside the VNet boundary.</text>
+
+  <text x="60" y="745" class="section-title">2  Standard v2: private connections to a Microsoft hosted gateway</text>
+  <line x1="60" y1="765" x2="1340" y2="765" stroke="#0078d4" stroke-width="2"/>
+
+  <rect x="85" y="825" width="820" height="400" fill="#ffffff" stroke="#8a8886"/>
+  <rect x="85" y="825" width="820" height="34" fill="#f3f9fd" stroke="#8a8886"/>
+  <text x="105" y="847" class="boundary-title">Customer private network: Foundry spoke and hub VNet</text>
+
+  <rect x="1000" y="825" width="300" height="205" fill="#ffffff" stroke="#8a8886"/>
+  <rect x="1000" y="825" width="300" height="34" fill="#faf9f8" stroke="#8a8886"/>
+  <text x="1020" y="847" class="boundary-title">Microsoft hosted APIM service</text>
+
+  <image href="assets/azure-icons/foundry-agent-service.svg" x="150" y="918" width="64" height="64"/>
+  <text x="182" y="1005" text-anchor="middle" class="node-title">Foundry Agent Service</text>
+  <text x="182" y="1024" text-anchor="middle" class="node-sub">Spoke VNet</text>
+
+  <image href="assets/azure-icons/private-endpoint.svg" x="450" y="918" width="64" height="64"/>
+  <text x="482" y="1005" text-anchor="middle" class="node-title">Private Endpoint</text>
+  <text x="482" y="1024" text-anchor="middle" class="node-sub">Inbound private IP</text>
+
+  <image href="assets/azure-icons/api-management.svg" x="1118" y="898" width="64" height="64"/>
+  <text x="1150" y="985" text-anchor="middle" class="node-title">API Management Standard v2</text>
+  <text x="1150" y="1004" text-anchor="middle" class="node-sub">Gateway outside VNet</text>
+
+  <rect x="390" y="1090" width="250" height="72" fill="#ffffff" stroke="#0078d4" stroke-dasharray="7 6"/>
+  <text x="515" y="1118" text-anchor="middle" class="node-title">Outbound VNet integration subnet</text>
+  <text x="515" y="1141" text-anchor="middle" class="node-sub">Delegated to Microsoft.Web/serverFarms</text>
+
+  <image href="assets/azure-icons/virtual-network-gateway.svg" x="760" y="1093" width="64" height="64"/>
+  <text x="792" y="1180" text-anchor="middle" class="node-title">Virtual Network Gateway</text>
+  <text x="792" y="1199" text-anchor="middle" class="node-sub">S2S VPN</text>
+
+  <rect x="1080" y="1095" width="170" height="72" fill="#ffffff" stroke="#8a8886"/>
+  <text x="1165" y="1125" text-anchor="middle" class="node-title">On-premises</text>
+  <text x="1165" y="1146" text-anchor="middle" class="node-sub">Private APIs and MCP</text>
+
+  <path d="M214 950 H440" class="private-edge"/>
+  <text x="327" y="937" text-anchor="middle" class="edge-label">Private peering</text>
+  <path d="M514 950 H990 V930 H1108" class="private-edge"/>
+  <text x="760" y="937" text-anchor="middle" class="edge-label">Azure Private Link</text>
+  <path d="M1150 962 V1055 H515 V1080" class="private-edge"/>
+  <text x="815" y="1042" text-anchor="middle" class="edge-label">Outbound VNet integration</text>
+  <path d="M640 1126 H750" class="private-edge"/>
+  <text x="695" y="1113" text-anchor="middle" class="edge-label">Private route</text>
+  <path d="M824 1126 H1070" class="private-edge"/>
+  <text x="947" y="1113" text-anchor="middle" class="edge-label">IPsec tunnel</text>
+
+  <rect x="255" y="1260" width="890" height="44" fill="#fff9e6" stroke="#d83b01"/>
+  <text x="700" y="1287" text-anchor="middle" font-size="13" font-weight="600" fill="#8a2c0d">Private API path, but the APIM gateway compute remains outside the customer VNet.</text>
+
+  <line x1="70" y1="1368" x2="130" y2="1368" class="private-edge"/>
+  <text x="145" y="1373" class="node-sub">Private API data path</text>
+  <line x1="365" y1="1368" x2="425" y2="1368" class="control-edge"/>
+  <text x="440" y="1373" class="node-sub">Azure management relationship</text>
+  <rect x="730" y="1353" width="45" height="30" fill="#ffffff" stroke="#8a8886"/>
+  <text x="790" y="1373" class="node-sub">Placement boundary</text>
+
+  <text x="70" y="1430" class="metadata">References: Azure Well-Architected architecture diagrams; Azure architecture icons; APIM virtual network concepts</text>
+</svg>
