@@ -156,6 +156,7 @@ if (-not $foundryAcct) {
 }
 $foundryEndpoint = (az cognitiveservices account show --subscription $subscriptionId -g $spokeRg -n $foundryAcct --query "properties.endpoint" -o tsv).Trim()
 $foundryDeployment = (az cognitiveservices account deployment list --subscription $subscriptionId -g $spokeRg -n $foundryAcct --query "[0].name" -o tsv).Trim()
+$escapedCorsOrigins = $corsOrigins.Replace('"', '\"')
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Write-Host "Peering $spokeVnet <-> $hubVnet, DNS, and publishing Foundry '$foundryAcct' as an APIM backend..." -ForegroundColor Cyan
@@ -164,7 +165,7 @@ az deployment sub create --subscription $subscriptionId -l $region --template-fi
                apimName=$apimName apimPrivateIp=$apimIp apimPrivateDnsZone=$apimPrivateDnsZone `
                wireFoundryBackend=true foundryResourceGroup=$spokeRg foundryAccountName=$foundryAcct `
                foundryEndpoint=$foundryEndpoint foundryDeploymentName=$foundryDeployment `
-               entraTenantId=$entraTenantId jwtAudience=$jwtAudience allowedCorsOrigins=$corsOrigins `
+               entraTenantId=$entraTenantId jwtAudience=$jwtAudience allowedCorsOrigins=$escapedCorsOrigins `
   --only-show-errors
 if ($LASTEXITCODE -ne 0) { throw "Peering/DNS deployment failed (exit $LASTEXITCODE). See errors above." }
 
