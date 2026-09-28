@@ -3,8 +3,8 @@ name: ai-hybrid-data-sources
 metadata:
   template: ai-hybrid-data-sources-optionb@0.1.0
 
-# Option B: network-level S2S connectivity plus the APIM Premium v2 control plane
-# (VNet-injected, Internal mode) that fronts both egress (models) and ingress (on-prem data).
+# Network-level S2S connectivity with a selectable APIM profile: Premium v2 full VNet
+# injection or Standard v2 Private Link plus outbound VNet integration.
 infra:
   provider: bicep
   path: infra
@@ -32,6 +32,15 @@ hooks:
     windows:
       shell: pwsh
       run: ./scripts/validate-azure-context.ps1
+      interactive: false
+  postprovision:
+    posix:
+      shell: sh
+      run: ./scripts/finalize-apim-networking.sh
+      interactive: false
+    windows:
+      shell: pwsh
+      run: ./scripts/finalize-apim-networking.ps1
       interactive: false
   postup:
     posix:

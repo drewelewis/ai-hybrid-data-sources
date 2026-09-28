@@ -8,9 +8,10 @@ matrix; on-prem device setup is in
 
 ## Architecture
 
-- The deployed baseline is **Foundry Option A**: a hub VNet, a VpnGw1AZ Site-to-Site IPsec VPN
-  to on-prem, and **APIM Premium v2** VNet-injected in `Internal` mode. Copilot Studio
-  Option A reuses the same tunnel. Every other option in the README is documentation only.
+- The deployed baseline is **Foundry Option A**: a hub VNet, a VpnGw1AZ Site-to-Site IPsec
+  VPN to on-prem, and a selectable APIM profile. `premiumV2Injection` is the default and
+  injects Premium v2 in `Internal` mode; `standardV2PrivateLink` uses Standard v2 inbound
+  Private Link plus outbound VNet integration. Copilot Studio Option A reuses the tunnel.
 - IaC lives in `infra/` (`main.bicep` → `resources.bicep`); `azure.yaml` drives `azd`. No
   application services are deployed.
 
@@ -29,12 +30,15 @@ matrix; on-prem device setup is in
   (`sharedKey`, `apimPublisherEmail`) are prompted by `azd`, so keep them OUT of that file.
 - **APIM Premium v2 requires API version `2025-09-01-preview`** — `PremiumV2` is absent from
   the stable `2024-05-01` SKU enum. Do not lower the APIM `apiVersion`.
-- The APIM injection subnet must stay **dedicated**, **delegated to
-  `Microsoft.Web/hostingEnvironments`**, with an NSG allowing outbound 443 to `AzureKeyVault`.
+- The APIM subnet must stay **dedicated**, with an NSG allowing outbound 443 to
+  `AzureKeyVault`. Premium v2 injection delegates it to
+  `Microsoft.Web/hostingEnvironments`; Standard v2 outbound integration delegates it to
+  `Microsoft.Web/serverFarms`. The Standard v2 private endpoint uses a separate subnet.
 - The VPN gateway must use a zone-redundant **AZ SKU** (`VpnGw1AZ`) with a **zone-redundant
   public IP** (`zones: ['1','2','3']`) — non-AZ `VpnGw` SKUs are retired.
-- **APIM Premium v2 isn't available in every region** (not in East US / West US as of 2026-09);
-  deploy to a supported region such as Canada Central.
+- APIM tier availability and subscription access vary by region, and the SKU API does not
+  guarantee physical capacity. Keep the selected profile wired into regional preflight and
+  retain APIM-first deployment staging.
 - On-prem strongSwan differs by OpenWrt version: **25.x+ uses `apk` + strongSwan 6 (`swanctl`,
   `/etc/swanctl/conf.d/`, `/etc/init.d/swanctl`)**; ≤24.x uses `opkg` + `ipsec.conf`.
 - Keep IPsec crypto and subnets in sync across `infra/resources.bicep`, `onprem/ipsec.conf`,

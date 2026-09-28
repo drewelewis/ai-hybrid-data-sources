@@ -26,7 +26,14 @@ param apimPublisherEmail string
 @description('Publisher/organization name for the API Management instance.')
 param apimPublisherName string
 
-@description('Scale-out units for API Management Premium v2.')
+@allowed([
+  'premiumV2Injection'
+  'standardV2PrivateLink'
+])
+@description('APIM networking profile.')
+param apimNetworkProfile string = 'premiumV2Injection'
+
+@description('Scale-out units for the selected API Management v2 tier.')
 param apimCapacity int = 1
 
 @description('APIM private IP inside the injection subnet (Premium v2 Internal mode returns null, so it is supplied statically). First usable address in the /24 apim subnet.')
@@ -42,11 +49,15 @@ param appServiceLocation string = 'canadaeast'
 var vnetAddressPrefix = '10.100.0.0/16'
 var gatewaySubnetPrefix = '10.100.0.0/27'
 var apimSubnetPrefix = '10.100.1.0/24'
+var apimPrivateEndpointSubnetPrefix = '10.100.2.0/27'
 var appServiceVnetAddressPrefix = '10.101.0.0/16'
 var appServiceSubnetPrefix = '10.101.0.0/27'
+var usePremiumV2Injection = apimNetworkProfile == 'premiumV2Injection'
+var apimSkuName = usePremiumV2Injection ? 'PremiumV2' : 'StandardV2'
+var apimDnsZoneName = usePremiumV2Injection ? 'azure-api.net' : 'privatelink.azure-api.net'
+var apimSubnetName = usePremiumV2Injection ? 'apim' : 'snet-apim-outbound'
 
-// NSG required on the API Management injection subnet. Premium v2 simplified injection
-// only mandates outbound 443 to Azure Key Vault; platform defaults cover the rest.
+// Both v2 networking models require outbound 443 to Key Vault on their delegated subnet.
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: 'nsg-apim-${resourceToken}'
   location: location
@@ -78,31 +89,44 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     addressSpace: {
       addressPrefixes: [ vnetAddressPrefix ]
     }
-    subnets: [
-      {
-        name: 'GatewaySubnet'
-        properties: {
-          addressPrefix: gatewaySubnetPrefix
-        }
-      }
-      {
-        name: 'apim'
-        properties: {
-          addressPrefix: apimSubnetPrefix
-          networkSecurityGroup: {
-            id: nsg.id
+    subnets: concat(
+      [
+        {
+          name: 'GatewaySubnet'
+          properties: {
+            addressPrefix: gatewaySubnetPrefix
           }
-          delegations: [
-            {
-              name: 'apim-delegation'
-              properties: {
-                serviceName: 'Microsoft.Web/hostingEnvironments'
-              }
-            }
-          ]
         }
-      }
-    ]
+        {
+          name: apimSubnetName
+          properties: {
+            addressPrefix: apimSubnetPrefix
+            networkSecurityGroup: {
+              id: nsg.id
+            }
+            delegations: [
+              {
+                name: 'apim-delegation'
+                properties: {
+                  serviceName: usePremiumV2Injection ? 'Microsoft.Web/hostingEnvironments' : 'Microsoft.Web/serverFarms'
+                }
+              }
+            ]
+          }
+        }
+      ],
+      usePremiumV2Injection
+        ? []
+        : [
+          {
+            name: 'snet-apim-private-endpoint'
+            properties: {
+              addressPrefix: apimPrivateEndpointSubnetPrefix
+              privateEndpointNetworkPolicies: 'Disabled'
+            }
+          }
+        ]
+    )
   }
 }
 
@@ -269,15 +293,14 @@ resource connection 'Microsoft.Network/connections@2024-05-01' = {
   }
 }
 
-// ---- API Management (Premium v2), VNet-injected for private ingress/egress ----
-// Injected in Internal mode: the gateway is reachable only via a private IP inside the
-// VNet, giving the private-only, no-public-endpoint posture the Option B pattern requires.
+// Premium v2 is injected; Standard v2 uses outbound integration and gains private inbound
+// connectivity through the private endpoint below.
 resource apim 'Microsoft.ApiManagement/service@2025-09-01-preview' = {
   name: 'apim-${resourceToken}'
   location: location
   tags: tags
   sku: {
-    name: 'PremiumV2'
+    name: apimSkuName
     capacity: apimCapacity
   }
   identity: {
@@ -286,17 +309,38 @@ resource apim 'Microsoft.ApiManagement/service@2025-09-01-preview' = {
   properties: {
     publisherEmail: apimPublisherEmail
     publisherName: apimPublisherName
-    virtualNetworkType: 'Internal'
+    publicNetworkAccess: 'Enabled'
+    virtualNetworkType: usePremiumV2Injection ? 'Internal' : 'External'
     virtualNetworkConfiguration: {
-      subnetResourceId: '${vnet.id}/subnets/apim'
+      subnetResourceId: '${vnet.id}/subnets/${apimSubnetName}'
     }
   }
 }
 
-// ---- Private DNS so the VNet can resolve the Internal-mode APIM gateway host ----
-// Internal APIM uses the real azure-api.net domain (not privatelink.azure-api.net).
+resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = if (!usePremiumV2Injection) {
+  name: 'pep-apim-${resourceToken}'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: '${vnet.id}/subnets/snet-apim-private-endpoint'
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'apim-gateway'
+        properties: {
+          privateLinkServiceId: apim.id
+          groupIds: [
+            'Gateway'
+          ]
+        }
+      }
+    ]
+  }
+}
+
 resource apimPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  name: 'azure-api.net'
+  name: apimDnsZoneName
   location: 'global'
   tags: tags
   dependsOn: [
@@ -330,7 +374,22 @@ resource apimPrivateDnsAppServiceLink 'Microsoft.Network/privateDnsZones/virtual
   }
 }
 
-resource apimGatewayARecord 'Microsoft.Network/privateDnsZones/A@2020-06-01' = {
+resource apimPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = if (!usePremiumV2Injection) {
+  parent: apimPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'apim-gateway'
+        properties: {
+          privateDnsZoneId: apimPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource apimGatewayARecord 'Microsoft.Network/privateDnsZones/A@2020-06-01' = if (usePremiumV2Injection) {
   parent: apimPrivateDnsZone
   name: apim.name
   properties: {
@@ -406,7 +465,9 @@ output vpnGatewayPublicIp string = vpnGatewayPip.properties.ipAddress
 output vnetAddressSpace string = vnetAddressPrefix
 output vpnConnectionName string = connection.name
 output apimName string = apim.name
-output apimGatewayUrl string = apim.properties.gatewayUrl
+output apimGatewayUrl string = 'https://${apim.name}.azure-api.net'
+output apimPrivateIp string = usePremiumV2Injection ? apimPrivateIp : apimPrivateEndpoint!.properties.customDnsConfigs[0].ipAddresses[0]
+output apimPrivateDnsZoneName string = apimDnsZoneName
 output appServiceName string = appService.name
 output appServiceDefaultHostName string = 'https://${appService.properties.defaultHostName}'
 output appServiceLocation string = appServiceLocation

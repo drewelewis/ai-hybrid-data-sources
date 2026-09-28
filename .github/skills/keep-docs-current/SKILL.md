@@ -31,13 +31,18 @@ description: 'Keep this repo''s README.md and the on-prem strongSwan guide accur
 - **IPsec crypto:** IKEv2 `AES256 / SHA256 / DHGroup14 (modp2048) / no PFS` — keep aligned
   across `infra/resources.bicep` (`ipsecPolicies`), `onprem/ipsec.conf` (legacy) or
   `swanctl.conf` (strongSwan 6), and the guide.
-- **Addressing:** VNet `10.100.0.0/16`, GatewaySubnet `10.100.0.0/27`, APIM subnet
-  `10.100.1.0/24`, on-prem LAN `192.168.50.0/24`.
-- **APIM:** Premium v2 requires API version `2025-09-01-preview` (`PremiumV2` SKU); injection
-  subnet delegated to `Microsoft.Web/hostingEnvironments` with an NSG allowing outbound 443
-  to `AzureKeyVault`.
+- **Addressing:** VNet `10.100.0.0/16`, GatewaySubnet `10.100.0.0/27`, APIM injection or
+  outbound-integration subnet `10.100.1.0/24`, Standard v2 private-endpoint subnet
+  `10.100.2.0/27`, on-prem LAN `192.168.50.0/24`.
+- **APIM:** API version `2025-09-01-preview`; `premiumV2Injection` uses `PremiumV2`,
+  `Internal` injection, `azure-api.net`, and `Microsoft.Web/hostingEnvironments`;
+  `standardV2PrivateLink` uses `StandardV2`, outbound integration,
+  `privatelink.azure-api.net`, `Microsoft.Web/serverFarms`, and a separate `Gateway`
+  private endpoint. Both delegated-subnet profiles require an NSG allowing outbound 443 to
+  `AzureKeyVault`.
 - **azd outputs** referenced in the guide exist in `infra/main.bicep`
-  (`VPN_GATEWAY_PUBLIC_IP`, `VPN_CONNECTION_NAME`, `APIM_NAME`, `APIM_GATEWAY_URL`).
+  (`VPN_GATEWAY_PUBLIC_IP`, `VPN_CONNECTION_NAME`, `APIM_NAME`, `APIM_GATEWAY_URL`,
+  `APIM_PRIVATE_IP`, `APIM_NETWORK_PROFILE`, `APIM_PRIVATE_DNS_ZONE`).
 
 ## Recording an OpenWrt / strongSwan learning
 The MX4300 guide must cover both toolchains, because the router build dictates which applies:

@@ -121,12 +121,22 @@ Write-Host "  Subscription: $($azAccount.name) ($($azAccount.id))"
 Write-Host "  Tenant:       $($azAccount.tenantId)"
 Write-Host "  Identity:     $azIdentity"
 
+$apimProfiles = @('premiumV2Injection', 'standardV2PrivateLink')
+$currentApimProfile = Get-AzdValue -Name 'APIM_NETWORK_PROFILE'
+$apimProfile = if ($currentApimProfile -in $apimProfiles) { $currentApimProfile } else { 'premiumV2Injection' }
+$nonInteractive = $env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -in @('true', '1')
+if (-not $nonInteractive -and $env:AZD_SKIP_REGION_PICKER -ne 'true') {
+  $apimProfile = Select-Option -Label 'APIM networking profile' -Options $apimProfiles -DefaultValue $apimProfile
+}
+Set-AzdValue -Name 'APIM_NETWORK_PROFILE' -Value $apimProfile
+$apimSkuDisplayName = if ($apimProfile -eq 'premiumV2Injection') { 'Premium v2' } else { 'Standard v2' }
+
 Write-Host ""
 Write-Host 'Checking advertised regional services, subscription SKU restrictions, models, and quotas...' -ForegroundColor Cyan
-Write-Host 'APIM Premium v2 has no read-only physical-capacity API. The final APIM resource is staged first as the decisive live probe.' -ForegroundColor Yellow
+Write-Host "APIM $apimSkuDisplayName has no read-only physical-capacity guarantee. The staged APIM create is the decisive live probe." -ForegroundColor Yellow
 
 $preflightScript = Join-Path $PSScriptRoot 'regional-preflight.ps1'
-& $preflightScript -InvokedByPicker
+& $preflightScript -ApimNetworkProfile $apimProfile -InvokedByPicker
 $preflightExitCode = $LASTEXITCODE
 if ($preflightExitCode -notin @(0, 2)) {
   throw "Regional preflight failed with exit code $preflightExitCode. Provisioning was stopped."
@@ -163,8 +173,8 @@ $currentModelOption = "$currentModel|$currentModelVersion"
 $selectedModelOption = if ($currentModelOption -in $modelOptions) { $currentModelOption } else { $modelOptions[0] }
 $modelName, $modelVersion = $selectedModelOption.Split('|', 2)
 
-$nonInteractive = $env:CI -eq 'true' -or $env:AZD_NON_INTERACTIVE -in @('true', '1')
 $allConfigured = (
+  $currentApimProfile -eq $apimProfile -and
   $currentHub -eq $hubRegion -and
   $currentApp -eq $appRegion -and
   $currentFoundry -eq $foundryRegion -and
@@ -176,6 +186,7 @@ if (-not $nonInteractive -and $env:AZD_SKIP_REGION_PICKER -ne 'true') {
   if ($allConfigured) {
     Write-Host ""
     Write-Host "Saved deployment placement:" -ForegroundColor Cyan
+    Write-Host "  APIM:        $apimProfile ($apimSkuDisplayName)"
     Write-Host "  Hub:         $hubRegion (APIM live probe pending)"
     Write-Host "  Application: $appRegion"
     Write-Host "  Foundry:     $foundryRegion"
@@ -204,6 +215,7 @@ Set-AzdValue -Name 'FOUNDRY_MODEL_VERSION' -Value $modelVersion
 
 Write-Host ""
 Write-Host 'Deployment placement saved to the azd environment:' -ForegroundColor Green
+Write-Host "  APIM:        $apimProfile ($apimSkuDisplayName)"
 Write-Host "  Hub:         $hubRegion (APIM live probe pending)"
 Write-Host "  Application: $appRegion"
 Write-Host "  Foundry:     $foundryRegion"

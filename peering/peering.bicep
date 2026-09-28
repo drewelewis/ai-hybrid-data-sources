@@ -1,6 +1,6 @@
 // Glue that connects a spoke VNet (e.g. a private Foundry) to this repo's hub:
 //   - VNet peering both directions
-//   - a private DNS zone so the spoke resolves the Internal APIM hostname to its private IP
+//   - a profile-specific private DNS zone so the spoke resolves APIM to its private IP
 // Run AFTER the spoke VNet exists. Deploy at subscription scope:
 //   az deployment sub create -l <region> --template-file peering/peering.bicep --parameters ...
 targetScope = 'subscription'
@@ -17,11 +17,18 @@ param spokeResourceGroup string
 @description('Spoke VNet name.')
 param spokeVnetName string
 
-@description('APIM instance name — the hostname label under azure-api.net for the DNS A record.')
+@description('APIM instance name — the hostname label for the DNS A record.')
 param apimName string
 
-@description('APIM private IP. Premium v2 assigns this dynamically; update the record if it changes.')
+@description('APIM private IP.')
 param apimPrivateIp string
+
+@allowed([
+  'azure-api.net'
+  'privatelink.azure-api.net'
+])
+@description('Private DNS zone used by the selected APIM networking profile.')
+param apimPrivateDnsZone string = 'azure-api.net'
 
 @description('Only enable if the spoke needs DIRECT on-prem private-IP access via the hub VPN gateway. Not needed for the APIM path.')
 param enableGatewayTransit bool = false
@@ -83,6 +90,7 @@ module apimDns 'modules/apim-private-dns.bicep' = {
   params: {
     apimName: apimName
     apimPrivateIp: apimPrivateIp
+    privateDnsZoneName: apimPrivateDnsZone
     spokeVnetId: spokeVnetId
   }
 }

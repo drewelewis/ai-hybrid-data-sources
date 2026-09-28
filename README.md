@@ -12,8 +12,11 @@ It solves two problems at once, without exposing any private system to the publi
 
 > **What `azd up` deploys:** the **Foundry Option A** baseline as **one hub and two spokes**:
 >
-> - **Selected hub region:** VNet, **VpnGw1AZ** Site-to-Site VPN, and **APIM Premium v2**
->   VNet-injected in `Internal` mode.
+> - **Selected hub region:** VNet, **VpnGw1AZ** Site-to-Site VPN, and one selectable APIM
+>   networking profile:
+>   - `premiumV2Injection` (default): **Premium v2** VNet-injected in `Internal` mode.
+>   - `standardV2PrivateLink`: **Standard v2** with inbound Private Link, outbound VNet
+>     integration, and public gateway access disabled after the private endpoint is ready.
 > - **Canada East spoke:** a globally peered VNet with an empty Linux App Service. Its
 >   application is maintained and deployed from a separate repository.
 > - **Sweden Central spoke:** the globally peered, network-isolated Azure AI Foundry
@@ -24,10 +27,11 @@ It solves two problems at once, without exposing any private system to the publi
 > Copilot Studio **Option A** reuses the hub tunnel. Every other option is documented here
 > as guidance you layer on yourself.
 >
-> **Region note:** APIM Premium v2 isn't offered in every region. Its subscription SKU API can
-> eliminate missing or formally restricted regions, but does not report transient physical
-> capacity. The deployment therefore stages the final APIM instance first. The gateway uses a
-> zone-redundant **VpnGw1AZ** SKU with a zone-redundant public IP (non-AZ `VpnGw` SKUs are retired).
+> **Region note:** APIM tier availability and capacity vary by subscription and region.
+> The subscription SKU API can eliminate missing or formally restricted regions, but does
+> not report transient physical capacity. The deployment therefore stages the selected APIM
+> instance first. The VPN gateway uses a zone-redundant **VpnGw1AZ** SKU with a
+> zone-redundant public IP (non-AZ `VpnGw` SKUs are retired).
 
 ## Contents
 
@@ -74,7 +78,7 @@ an AI Gateway for outbound model calls and a private ingress path to on-prem dat
 
 | Platform | Option | Mechanism | Private-only data path | Access style | Deployed by this repo |
 | --- | --- | --- | --- | --- | --- |
-| **Foundry** | **A** | VNet + VPN/ExpressRoute; APIM Premium v2 injected | ✅ Yes | Raw private-IP / native protocol | ✅ Yes |
+| **Foundry** | **A** | VNet + VPN/ExpressRoute; selectable APIM Premium v2 injection or Standard v2 Private Link | ✅ Yes | Raw private-IP / native protocol; governed APIs through APIM | ✅ Yes |
 | **Foundry** | B | APIM self-hosted gateway (dial-out) | ❌ TLS over public internet | Governed APIs | — |
 | **Copilot Studio** | **A** | Power Platform VNet integration → VPN/ExpressRoute | ✅ Yes | Connector over private path | Reuses the tunnel |
 | **Copilot Studio** | B | On-premises data gateway + connectors | ❌ Dial-out via Microsoft cloud | Connectors / APIs | — |
@@ -125,7 +129,7 @@ This is the harder direction, and the one where you choose an option.
 | Typical fit | Regulated / high-assurance (finance, healthcare, gov); the enterprise default here | Teams without a private-only mandate |
 | Access style | Raw **private-IP / network** access | Agents call **APIs** |
 | Throughput | High / deterministic (ExpressRoute) | Standard |
-| Relative cost | Higher (always-on gateway + Premium v2) | Lower (no VPN) |
+| Relative cost | Higher (always-on VPN + Standard v2 or Premium v2) | Lower (no VPN) |
 
 This reference implementation **leads with Option A** as the enterprise-grade default — and
 it's the option the Bicep here deploys. Choose **Option B** when you don't need a private
@@ -141,9 +145,19 @@ line-of-sight to on-premises hosts by private IP.
 - **Site-to-Site (S2S) IPsec VPN** — an IKEv2 tunnel to a route-based Azure **Virtual
   Network Gateway**. Fits smaller sites and labs.
 - **ExpressRoute (private fiber)** — for production/high-throughput, deterministic links.
-- **APIM Premium v2 injected into the VNet** (this repo deploys it in `Internal` mode) for
-  native private networking plus the AI-gateway features (semantic caching, token rate
-  limiting).
+- A selectable APIM networking profile:
+  - **Premium v2 injection** (default) places the APIM gateway data plane inside the hub
+    VNet in `Internal` mode.
+  - **Standard v2 Private Link** keeps the APIM service Microsoft-hosted, uses a private
+    endpoint for inbound gateway traffic, and uses outbound VNet integration to reach
+    on-premises APIs through the VPN. Public gateway access is disabled after Private Link
+    is established.
+
+Both profiles keep the API data path private and provide AI-gateway features. Only Premium
+v2 provides full VNet injection. Standard v2 is therefore a lower-cost fallback when API
+traffic is sufficient; it does not make APIM a native resource inside the VNet. Direct
+private-IP/native-protocol access from a spoke still uses hub gateway transit and does not
+flow through APIM.
 
 **Benefits**
 
@@ -159,8 +173,8 @@ line-of-sight to on-premises hosts by private IP.
 
 **Trade-offs / issues**
 
-- **Cost & complexity:** an always-on VPN gateway or ExpressRoute circuit **plus** a higher
-  APIM tier (Premium v2), and more moving parts — VNet, gateway, routing, DNS, private
+- **Cost & complexity:** an always-on VPN gateway or ExpressRoute circuit **plus** a
+  production APIM tier, and more moving parts — VNet, gateway, routing, DNS, private
   endpoints — to design and operate.
 - **VPN latency variability:** IPsec adds encryption overhead and still rides the public
   internet path; only ExpressRoute removes that variability (at higher cost and lead time).
@@ -208,11 +222,10 @@ flowchart LR
     FoundryVNet <-->|"global VNet peering"| HubFabric
 ```
 
-The regions are intentionally split by service availability and subscription quota:
-APIM Premium v2 and the VPN hub run in **Canada Central**, the B1 App Service plan runs in
-**Canada East**, and the existing Foundry deployment and its private dependencies run in
-**Sweden Central**. Both spokes use global VNet peering to reach the hub; neither is deployed
-inside the hub VNet.
+The regions are selected independently according to service availability and subscription
+quota. The placement picker chooses the hub for the selected APIM profile and VPN, the App
+Service region, and the Foundry region. Both spokes use global VNet peering when their
+regions differ from the hub; neither is deployed inside the hub VNet.
 
 ### Option B — APIM self-hosted gateway
 
@@ -425,14 +438,14 @@ VNet+VPN, Copilot Power Platform VNet integration) maps to the **VNet + VPN** fo
 (on-prem data gateway) adds no Azure networking cost — the gateway runs on-prem and dials
 out — and **Copilot Option C** is APIM-only.
 
-| | **Self-hosted gateway** footprint | **VNet + VPN** footprint |
-| --- | --- | --- |
-| Maps to | Foundry Option B | Foundry Option A · Copilot Option A |
-| APIM tier | Standard v2 (~$700) | Premium v2, 1 unit (~$1,400) |
-| Gateway / connectivity | 1 self-hosted gateway (~$250) | VpnGw1AZ + 1 tunnel (~$164) |
-| On-prem hardware | Existing servers ($0 Azure) | None |
-| **Azure fixed subtotal** | **~$950 / month** | **~$1,565 / month** |
-| AI usage | Token-based (same) | Token-based (same) |
+| | **Self-hosted gateway** | **VNet + VPN, Standard v2** | **VNet + VPN, Premium v2** |
+| --- | --- | --- | --- |
+| Maps to | Foundry Option B | Foundry Option A selectable profile | Foundry Option A default profile · Copilot Option A |
+| APIM tier | Standard v2 (~$700) | Standard v2 (~$700) | Premium v2, 1 unit (~$1,400) |
+| Gateway / connectivity | 1 self-hosted gateway (~$250) | VpnGw1AZ + 1 tunnel (~$164) | VpnGw1AZ + 1 tunnel (~$164) |
+| On-prem hardware | Existing servers ($0 Azure) | None | None |
+| **Azure fixed subtotal** | **~$950 / month** | **~$865 / month** | **~$1,565 / month** |
+| AI usage | Token-based (same) | Token-based (same) | Token-based (same) |
 
 - **Egress adds no fixed networking cost** — it reuses the same APIM instance; you pay only
   for model tokens.
@@ -472,12 +485,14 @@ az extension add --name quota --upgrade
 
 .\scripts\regional-preflight.ps1 `
   -SubscriptionId <subscription-id> `
+  -ApimNetworkProfile standardV2PrivateLink `
   -HubRegions canadacentral,centralus `
   -AppRegions canadaeast,eastus2 `
   -FoundryRegions swedencentral,centralus
 ```
 
-The version-controlled regional preflight skill writes its detailed report to
+Omit `-ApimNetworkProfile` to check the default `premiumV2Injection` profile. The
+version-controlled regional preflight skill writes its detailed report to
 `.azure/preflight/regional-preflight.json`. It queries the subscription-scoped APIM SKU and
 restriction API in addition to advertised services, models, and quota. `PASS` confirms the
 queried requirement; `CONDITIONAL` or `UNKNOWN` means Azure does not expose enough information
@@ -498,12 +513,14 @@ azd up                  # provision the shared infrastructure
 `azd up` prompts for an environment name and subscription, then the `preup` hook prints
 `Checking advertised regional services, subscription SKU restrictions, models, and quotas...`
 and runs a fresh, read-only global preflight. Unsupported and formally restricted candidates
-are removed before the placement picker selects and persists the hub, application, Foundry,
-and small-model choices in the active `azd` environment. A listed hub is eligible for an APIM
-create attempt; it is not capacity-approved. Its preferred ordering starts with:
+are removed before the placement picker selects and persists the APIM profile, hub,
+application, Foundry, and small-model choices in the active `azd` environment. A listed hub
+is eligible for an APIM create attempt; it is not capacity-approved. Its preferred ordering
+starts with:
 
 | Placement | Default |
 | --- | --- |
+| APIM networking profile | `premiumV2Injection` |
 | Hub / VPN / APIM | Canada Central |
 | Application App Service | Canada East |
 | Foundry spoke | Sweden Central |
@@ -513,11 +530,12 @@ Every run refreshes regional evidence before the picker displays the saved place
 defaults to reusing it. A preflight execution error stops `azd up` before provisioning;
 `CONDITIONAL` and `UNKNOWN` evidence remains visible because Azure does not expose physical
 capacity for every SKU. ARM `validate` and `what-if` do not exercise APIM's transient capacity
-gate. The deployment therefore creates the final VNet-injected APIM instance immediately
-after its NSG and hub VNet. VPN, App Service, DNS, identity, and Foundry provisioning starts
-only after APIM reaches `Succeeded`, so an APIM rejection fails early without creating those
-dependent resources. Changing placement on an already provisioned environment can replace or
-add resources, so review changes before answering **No** to the reuse prompt. In
+gate. The deployment therefore creates the selected APIM instance immediately after its NSG
+and hub VNet. VPN, App Service, DNS, identity, and Foundry provisioning starts only after
+APIM reaches `Succeeded`, so an APIM rejection fails early without creating those dependent
+resources. Changing the APIM profile or placement on an already provisioned environment can
+replace or add resources; use a separate azd environment and resource group for each profile.
+In
 non-interactive runs, or with `AZD_SKIP_REGION_PICKER=true`, the hook still runs preflight,
 then uses saved values when they remain viable and fills missing or failed values from the
 fresh candidate list.
@@ -528,9 +546,14 @@ stops before provisioning with an explicit `azd auth login --tenant-id ...` comm
 they differ. `az` and `azd` have independent authentication caches; logging in to one does
 not switch the other.
 
-After placement selection, `azd up` prompts for the **IPsec pre-shared key** and an **APIM
-publisher email**, then provisions the recommended baseline
-(**Foundry Option A**: the VNet + S2S VPN path with **APIM Premium v2** VNet-injected). By
+After profile and placement selection, `azd up` prompts for the **IPsec pre-shared key** and
+an **APIM publisher email**, then provisions **Foundry Option A** with the selected APIM
+networking profile. Premium v2 injection remains the default. For Standard v2, the
+`postprovision` hook verifies that the private endpoint is approved, then disables and
+verifies public gateway access; a failure stops `azd up` explicitly rather than reporting a
+private deployment while public access may remain enabled. APIM applies that update
+asynchronously; the hook issues one API `PATCH` and polls for `Disabled`/`Succeeded` for up
+to ten minutes. By
 default, the picker provisions an empty Linux App Service in a **Canada East** spoke VNet
 and peers that VNet globally with the selected hub. The separate application
 repository owns build and code deployment to this App Service; this repository only creates
@@ -552,8 +575,8 @@ creating resources if they differ. Select the same subscription at the `azd up` 
 the post-provision Foundry and peering scripts then pass that subscription explicitly to
 every Azure CLI command.
 
-Because Premium v2 is an always-on, higher-cost tier, tear the environment down when you're
-not actively testing and re-run `azd up` when you need it:
+Because both APIM profiles and the VPN are always-on resources, tear the environment down
+when you're not actively testing and re-run `azd up` when you need it:
 
 ```bash
 azd down
@@ -581,8 +604,10 @@ is compiled with `npm run build`, and App Service launches the deployed Express 
 
 > Infrastructure-as-code assets live under `infra/`, with `azure.yaml` at the repository
 > root driving `azd`. The deployed baseline provisions **Foundry Option A** — the VNet,
-> VpnGw1AZ gateway, local gateway, and IPsec connection, **plus** an **APIM Premium v2**
-> instance VNet-injected in `Internal` mode — the single control plane both platforms reuse.
+> VpnGw1AZ gateway, local gateway, and IPsec connection, **plus** the selected APIM
+> networking profile. The default is **Premium v2** VNet-injected in `Internal` mode; the
+> alternative is **Standard v2** with inbound Private Link and outbound VNet integration.
+> APIM is the single control plane both platforms reuse.
 > It also creates an empty App Service in a globally peered Canada East spoke; application
 > code is deployed from its own repository. Copilot Option A rides the same tunnel. On-prem
 > strongSwan config lives under `onprem/`
@@ -598,6 +623,8 @@ is compiled with `npm run build`, and App Service launches the deployed Express 
 | **APIM** | Azure API Management — the shared control plane / AI Gateway |
 | **A365** | Agent 365 — telemetry & governance SDK for agents |
 | **VNet injection** | Placing a service (e.g. APIM Premium v2) directly inside your virtual network |
+| **VNet integration** | Giving a Microsoft-hosted service private outbound access through a delegated subnet |
+| **Private Link** | Private inbound access to a Microsoft-hosted service through a private endpoint |
 | **S2S / IKEv2** | Site-to-Site IPsec VPN tunnel to Azure |
 | **PSK** | Pre-shared key that authenticates the IPsec tunnel |
 | **ExpressRoute** | Private fiber circuit into Azure (alternative to S2S VPN) |
@@ -612,6 +639,8 @@ is compiled with `npm run build`, and App Service launches the deployed Express 
 - [Azure AI Foundry](https://learn.microsoft.com/azure/foundry/what-is-foundry)
 - [APIM self-hosted gateway overview](https://learn.microsoft.com/azure/api-management/self-hosted-gateway-overview)
 - [APIM Premium v2 VNet injection](https://learn.microsoft.com/azure/api-management/inject-vnet-v2)
+- [APIM Standard v2 outbound VNet integration](https://learn.microsoft.com/azure/api-management/integrate-vnet-outbound)
+- [APIM inbound private endpoint](https://learn.microsoft.com/azure/api-management/private-endpoint)
 - [API gateway in Azure API Management](https://learn.microsoft.com/azure/api-management/api-management-gateways-overview)
 - [Create a Site-to-Site VPN connection (Azure portal)](https://learn.microsoft.com/azure/vpn-gateway/tutorial-site-to-site-portal)
 - [Power Platform virtual network support](https://learn.microsoft.com/power-platform/admin/vnet-support-overview)

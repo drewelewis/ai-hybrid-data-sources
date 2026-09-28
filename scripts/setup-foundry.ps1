@@ -18,6 +18,20 @@ function Get-AzdOptionalValue {
   return (($value | ForEach-Object { $_.ToString() }) -join '').Trim()
 }
 
+function Get-AzCliText {
+  param(
+    [Parameter(Mandatory)]
+    [string[]]$Arguments,
+    [switch]$AllowFailure
+  )
+
+  $value = @(& az @Arguments)
+  if ($LASTEXITCODE -ne 0 -and -not $AllowFailure) {
+    throw "Azure CLI command failed: az $($Arguments -join ' ')"
+  }
+  return (($value | ForEach-Object { $_.ToString() }) -join '').Trim()
+}
+
 # --- CI / non-interactive guard: never block or auto-build in pipelines ---
 if ($env:AZD_SKIP_FOUNDRY -eq 'true') { Write-Host 'AZD_SKIP_FOUNDRY=true — skipping Foundry setup.'; exit 0 }
 
@@ -30,6 +44,11 @@ $hubVnet  = (az network vnet list --subscription $subscriptionId -g $hubRg --que
 $configuredFoundryRegion = Get-AzdOptionalValue -Name 'FOUNDRY_REGION'
 $configuredFoundryModel = Get-AzdOptionalValue -Name 'FOUNDRY_MODEL'
 $configuredFoundryModelVersion = Get-AzdOptionalValue -Name 'FOUNDRY_MODEL_VERSION'
+$apimIp = Get-AzdOptionalValue -Name 'APIM_PRIVATE_IP'
+$apimPrivateDnsZone = Get-AzdOptionalValue -Name 'APIM_PRIVATE_DNS_ZONE'
+if (-not $apimIp -or -not $apimPrivateDnsZone) {
+  throw 'APIM_PRIVATE_IP and APIM_PRIVATE_DNS_ZONE outputs are required. Run azd provision before Foundry setup.'
+}
 
 Write-Host ''
 Write-Host 'Hub is deployed (VNet + VPN + APIM).' -ForegroundColor Green
@@ -38,13 +57,26 @@ Write-Host 'Hub is deployed (VNet + VPN + APIM).' -ForegroundColor Green
 # another resource group. This keeps repeated azd up runs idempotent.
 $reuseExisting = $false
 if (-not $env:FOUNDRY_RG) {
-  $existingFoundryVnetId = (az network vnet peering list --subscription $subscriptionId -g $hubRg --vnet-name $hubVnet `
-    --query "[?peeringState=='Connected' && contains(remoteVirtualNetwork.id, '/resourceGroups/rg-foundry-')].remoteVirtualNetwork.id | [0]" `
-    -o tsv).Trim()
+  $existingFoundryVnetId = Get-AzCliText -Arguments @(
+    'network', 'vnet', 'peering', 'list',
+    '--subscription', $subscriptionId,
+    '--resource-group', $hubRg,
+    '--vnet-name', $hubVnet,
+    '--query', "[?peeringState=='Connected' && contains(remoteVirtualNetwork.id, '/resourceGroups/rg-foundry-')].remoteVirtualNetwork.id | [0]",
+    '--output', 'tsv',
+    '--only-show-errors'
+  )
   if ($existingFoundryVnetId) {
     $vnetIdParts = $existingFoundryVnetId.Split('/')
     $candidateRg = $vnetIdParts[4]
-    $candidateAccount = (az cognitiveservices account list --subscription $subscriptionId -g $candidateRg --query '[0].name' -o tsv).Trim()
+    $candidateAccount = Get-AzCliText -Arguments @(
+      'cognitiveservices', 'account', 'list',
+      '--subscription', $subscriptionId,
+      '--resource-group', $candidateRg,
+      '--query', '[0].name',
+      '--output', 'tsv',
+      '--only-show-errors'
+    )
     if ($candidateAccount) {
       $reuseExisting = $true
       $spokeRg = $candidateRg
@@ -75,7 +107,6 @@ $agentCidr = if ($env:FOUNDRY_AGENT_CIDR) { $env:FOUNDRY_AGENT_CIDR } else { '17
 $peCidr    = if ($env:FOUNDRY_PE_CIDR) { $env:FOUNDRY_PE_CIDR } else { '172.16.1.0/24' }
 $model     = if ($env:FOUNDRY_MODEL) { $env:FOUNDRY_MODEL } elseif ($configuredFoundryModel) { $configuredFoundryModel } else { 'gpt-5.4-mini' }
 $modelVer  = if ($env:FOUNDRY_MODEL_VERSION) { $env:FOUNDRY_MODEL_VERSION } elseif ($configuredFoundryModelVersion) { $configuredFoundryModelVersion } else { '2026-03-17' }
-$apimIp    = if ($env:APIM_PRIVATE_IP) { $env:APIM_PRIVATE_IP } else { '10.100.1.4' }
 # Entra auth for the Foundry API. Explicit environment variables override the app
 # registrations provisioned by the main Bicep deployment.
 $provisionedTenantId = (azd env get-value ENTRA_TENANT_ID 2>$null)
@@ -86,8 +117,6 @@ $corsOrigins   = if ($env:CORS_ORIGINS) { $env:CORS_ORIGINS } else { '["http://l
 
 Write-Host "Hub: rg=$hubRg vnet=$hubVnet apim=$apimName" -ForegroundColor Cyan
 Write-Host "Spoke: rg=$spokeRg region=$region model=$model ($modelVer)" -ForegroundColor Cyan
-$newIp = Read-Host "APIM private IP for the DNS record is '$apimIp' (Premium v2 is dynamic). Enter to accept, or type a new IP"
-if ($newIp) { $apimIp = $newIp.Trim() }
 
 if (-not $reuseExisting) {
   # --- Register providers required by template 19 (idempotent) ---
@@ -114,7 +143,17 @@ if (-not $reuseExisting) {
 }
 
 # --- Discover the Foundry account so peering.bicep can publish it as an APIM backend ---
-$foundryAcct = (az cognitiveservices account list --subscription $subscriptionId -g $spokeRg --query "[0].name" -o tsv).Trim()
+$foundryAcct = Get-AzCliText -Arguments @(
+  'cognitiveservices', 'account', 'list',
+  '--subscription', $subscriptionId,
+  '--resource-group', $spokeRg,
+  '--query', '[0].name',
+  '--output', 'tsv',
+  '--only-show-errors'
+)
+if (-not $foundryAcct) {
+  throw "No Azure AI Foundry account was found in resource group '$spokeRg'."
+}
 $foundryEndpoint = (az cognitiveservices account show --subscription $subscriptionId -g $spokeRg -n $foundryAcct --query "properties.endpoint" -o tsv).Trim()
 $foundryDeployment = (az cognitiveservices account deployment list --subscription $subscriptionId -g $spokeRg -n $foundryAcct --query "[0].name" -o tsv).Trim()
 
@@ -122,7 +161,7 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 Write-Host "Peering $spokeVnet <-> $hubVnet, DNS, and publishing Foundry '$foundryAcct' as an APIM backend..." -ForegroundColor Cyan
 az deployment sub create --subscription $subscriptionId -l $region --template-file (Join-Path $repoRoot 'peering/peering.bicep') `
   --parameters hubResourceGroup=$hubRg hubVnetName=$hubVnet spokeResourceGroup=$spokeRg spokeVnetName=$spokeVnet `
-               apimName=$apimName apimPrivateIp=$apimIp `
+               apimName=$apimName apimPrivateIp=$apimIp apimPrivateDnsZone=$apimPrivateDnsZone `
                wireFoundryBackend=true foundryResourceGroup=$spokeRg foundryAccountName=$foundryAcct `
                foundryEndpoint=$foundryEndpoint foundryDeploymentName=$foundryDeployment `
                entraTenantId=$entraTenantId jwtAudience=$jwtAudience allowedCorsOrigins=$corsOrigins `

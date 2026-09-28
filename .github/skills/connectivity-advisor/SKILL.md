@@ -19,8 +19,15 @@ description: 'Recommend and explain how to connect on-premises data and agents t
    [../../../README.md](../../../README.md).
 
 ## Foundry
-- **Option A (default, deployed by this repo):** VNet + S2S VPN/ExpressRoute, APIM Premium v2
-  injected. Private end-to-end; raw private-IP / native-protocol access.
+- **Option A (deployed by this repo):** VNet + S2S VPN/ExpressRoute with a selectable APIM
+  profile:
+  - `premiumV2Injection` (default): Premium v2 gateway data plane injected into the VNet.
+    Use for full VNet injection.
+  - `standardV2PrivateLink`: Standard v2 inbound Private Link plus outbound VNet
+    integration. It provides a private API data path at lower cost, but APIM remains
+    Microsoft-hosted rather than injected into the VNet.
+  Direct raw private-IP/native-protocol access uses hub gateway transit and is independent
+  of APIM.
 - **Option B:** APIM self-hosted gateway. API-only; data path over public TLS.
 
 ## Copilot Studio

@@ -1,9 +1,9 @@
 # Redeploy runbook — tear down / bring up without breaking on-prem
 
 This repo's baseline is meant to be **torn down when idle and brought back up on demand**
-(APIM Premium v2 is an always-on tier). This runbook lists exactly what to reconfigure on
-each `azd up`, and how to keep on-prem churn to a minimum so the tunnel comes back with the
-least effort.
+(both selectable APIM tiers and the VPN are always-on resources). This runbook lists exactly
+what to reconfigure on each `azd up`, and how to keep on-prem churn to a minimum so the
+tunnel comes back with the least effort.
 
 > **"The tunnel stays up" caveat.** `azd down` deletes the resource group, which **destroys
 > the Azure VPN gateway** — so the tunnel physically drops every cycle. What you *can* keep
@@ -27,7 +27,8 @@ resource comes back with the **same name**.
 | IKE/ESP proposals (`AES256/SHA256/DHGroup14/no PFS`) | ✅ Stable | Hard-coded on both ends |
 | APIM gateway FQDN (`apim-<token>.azure-api.net`) | ✅ Stable | Token-derived name |
 | **VPN gateway public IP** (`VPN_GATEWAY_PUBLIC_IP`) | ❌ **Rotates** | New IP on every recreate → **update on-prem** |
-| **APIM private IP** (`10.100.1.x`) | ⚠️ May change | Premium v2 assigns dynamically → **update Foundry DNS** |
+| **APIM private IP** | ⚠️ May change | Premium v2 uses `10.100.1.x`; Standard v2 Private Link uses `10.100.2.x`. The hooks reconcile Foundry DNS. |
+| APIM network profile | ✅ Stable | Saved as `APIM_NETWORK_PROFILE`; use a separate azd environment to change profiles |
 | **IPsec PSK** (`sharedKey`) | ⚠️ Prompted | Re-enter the **same** value to avoid on-prem edits |
 | Foundry spoke (Cosmos/Search/ACR/model) | ❌ Manual | `azd down` does **not** remove it; teardown is manual |
 
@@ -73,6 +74,9 @@ before. Reusing the PSK means the on-prem secret does **not** need editing.
 azd env get-value VPN_GATEWAY_PUBLIC_IP    # <-- the value that changed; update on-prem
 azd env get-value VPN_CONNECTION_NAME
 azd env get-value APIM_NAME
+azd env get-value APIM_NETWORK_PROFILE
+azd env get-value APIM_PRIVATE_IP
+azd env get-value APIM_PRIVATE_DNS_ZONE
 azd env get-value AZURE_RESOURCE_GROUP
 ```
 
@@ -109,20 +113,19 @@ ipsec statusall                       # look for ESTABLISHED + 192.168.50.0/24 =
 
 ### 4. Refresh the Foundry spoke DNS (only if using the spoke)
 
-APIM Premium v2 can land on a **different private IP** after recreate, and the Foundry spoke
-resolves `apim-<token>.azure-api.net` to that IP via a private DNS A record. Confirm the
-current IP and update the record if it moved:
+APIM can land on a **different private IP** after recreate. The Foundry setup hook reads
+`APIM_PRIVATE_IP` and `APIM_PRIVATE_DNS_ZONE` from the deployment and reconciles the private
+DNS record and VNet links. Re-run the setup hook instead of scanning the subnet:
 
 ```bash
-# find APIM's current private IP (from a hub/on-prem host):
-nmap -Pn -p443 --open 10.100.1.0/24        # the ASE front-end that answers 443
-
-# re-run the peering + DNS module against the (still-existing) spoke:
+# Re-run the peering + DNS module against the still-existing spoke:
 az deployment sub create -l <region> \
   --template-file peering/peering.bicep \
   --parameters hubResourceGroup=$(azd env get-value AZURE_RESOURCE_GROUP) \
                hubVnetName=<hub-vnet> spokeResourceGroup=<spoke-rg> spokeVnetName=<spoke-vnet> \
-               apimName=$(azd env get-value APIM_NAME) apimPrivateIp=<current-apim-ip>
+               apimName=$(azd env get-value APIM_NAME) \
+               apimPrivateIp=$(azd env get-value APIM_PRIVATE_IP) \
+               apimPrivateDnsZone=$(azd env get-value APIM_PRIVATE_DNS_ZONE)
 ```
 
 See [peering/readme.md](peering/readme.md) for the full peering + DNS walkthrough.

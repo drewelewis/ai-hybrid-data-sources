@@ -1,17 +1,22 @@
-// Private DNS so a spoke resolves the Internal APIM gateway hostname to its private IP.
-// NOTE: linking the azure-api.net zone to the spoke shadows ALL *.azure-api.net names there;
-// acceptable for a spoke dedicated to reaching this APIM.
+// Private DNS so a spoke resolves the selected APIM private gateway path.
 @description('APIM instance name (the hostname label under azure-api.net).')
 param apimName string
 
 @description('APIM private IP.')
 param apimPrivateIp string
 
+@allowed([
+  'azure-api.net'
+  'privatelink.azure-api.net'
+])
+@description('Private DNS zone used by the APIM networking profile.')
+param privateDnsZoneName string
+
 @description('Resource ID of the spoke VNet to link the zone to.')
 param spokeVnetId string
 
 resource zone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  name: 'azure-api.net'
+  name: privateDnsZoneName
   location: 'global'
 }
 

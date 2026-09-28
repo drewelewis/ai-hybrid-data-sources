@@ -20,6 +20,12 @@ hubVnet=$(az network vnet list --subscription "$subscriptionId" -g "$hubRg" --qu
 configuredFoundryRegion=$(get_azd_optional_value FOUNDRY_REGION)
 configuredFoundryModel=$(get_azd_optional_value FOUNDRY_MODEL)
 configuredFoundryModelVersion=$(get_azd_optional_value FOUNDRY_MODEL_VERSION)
+apimIp=$(get_azd_optional_value APIM_PRIVATE_IP)
+apimPrivateDnsZone=$(get_azd_optional_value APIM_PRIVATE_DNS_ZONE)
+if [ -z "$apimIp" ] || [ -z "$apimPrivateDnsZone" ]; then
+  echo "APIM_PRIVATE_IP and APIM_PRIVATE_DNS_ZONE outputs are required. Run azd provision before Foundry setup." >&2
+  exit 1
+fi
 
 echo ""
 echo "Hub is deployed (VNet + VPN + APIM)."
@@ -61,7 +67,6 @@ agentCidr=${FOUNDRY_AGENT_CIDR:-172.16.0.0/24}
 peCidr=${FOUNDRY_PE_CIDR:-172.16.1.0/24}
 model=${FOUNDRY_MODEL:-${configuredFoundryModel:-gpt-5.4-mini}}
 modelVer=${FOUNDRY_MODEL_VERSION:-${configuredFoundryModelVersion:-2026-03-17}}
-apimIp=${APIM_PRIVATE_IP:-10.100.1.4}
 # Entra auth for the Foundry API. Explicit environment variables override the app
 # registrations provisioned by the main Bicep deployment.
 provisionedTenantId=$(azd env get-value ENTRA_TENANT_ID 2>/dev/null || true)
@@ -71,8 +76,6 @@ jwtAudience=${JWT_AUDIENCE:-$provisionedAudience}
 corsOrigins=${CORS_ORIGINS:-'["http://localhost:5173"]'}
 
 echo "Hub: rg=$hubRg vnet=$hubVnet apim=$apimName | Spoke: rg=$spokeRg region=$region model=$model"
-printf "APIM private IP for DNS is '%s' (Premium v2 is dynamic). Enter to accept or type a new IP: " "$apimIp"
-read newIp; [ -n "$newIp" ] && apimIp=$(echo "$newIp" | tr -d '[:space:]')
 
 repoRoot=$(cd "$(dirname "$0")/.." && pwd)
 if [ "$reuseExisting" = false ]; then
@@ -103,7 +106,7 @@ repoRoot=$(cd "$(dirname "$0")/.." && pwd)
 echo "Peering $spokeVnet <-> $hubVnet, DNS, and publishing Foundry '$foundryAcct' as an APIM backend..."
 az deployment sub create --subscription "$subscriptionId" -l "$region" --template-file "$repoRoot/peering/peering.bicep" \
   --parameters hubResourceGroup="$hubRg" hubVnetName="$hubVnet" spokeResourceGroup="$spokeRg" spokeVnetName="$spokeVnet" \
-               apimName="$apimName" apimPrivateIp="$apimIp" \
+               apimName="$apimName" apimPrivateIp="$apimIp" apimPrivateDnsZone="$apimPrivateDnsZone" \
                wireFoundryBackend=true foundryResourceGroup="$spokeRg" foundryAccountName="$foundryAcct" \
                foundryEndpoint="$foundryEndpoint" foundryDeploymentName="$foundryDeployment" \
                entraTenantId="$entraTenantId" jwtAudience="$jwtAudience" allowedCorsOrigins="$corsOrigins" \

@@ -18,7 +18,8 @@ missing quota data as unlimited capacity.
 2. Install or update the quota extension:
    `az extension add --name quota --upgrade`
 3. Run from the repository root:
-   `./scripts/regional-preflight.ps1 -SubscriptionId <subscription-id>`
+   `./scripts/regional-preflight.ps1 -SubscriptionId <subscription-id> -ApimNetworkProfile <premiumV2Injection|standardV2PrivateLink>`
+   The profile defaults to `premiumV2Injection`.
    The default policy selects the first generally available `GlobalStandard` small chat model
    from the preference list independently for each Foundry candidate region.
 4. For an explicit candidate set:
@@ -36,8 +37,8 @@ missing quota data as unlimited capacity.
 
 The script exits `2` when any placement has a `FAIL`; `CONDITIONAL` and `UNKNOWN` do not
 produce a failing exit code. The APIM SKU API can eliminate missing or formally restricted
-PremiumV2 regions, but it does not expose transient physical capacity. ARM `validate` and
-`what-if` also do not exercise that capacity gate.
+PremiumV2 or StandardV2 regions for the selected profile, but it does not expose transient
+physical capacity. ARM `validate` and `what-if` also do not exercise that capacity gate.
 
 ## Interpretation
 - Rank regions independently for the hub, application spoke, and Foundry spoke.
@@ -45,7 +46,7 @@ PremiumV2 regions, but it does not expose transient physical capacity. ARM `vali
   region and require the deployment configuration to use the selected values.
 - Prefer a `PASS` placement over `CONDITIONAL`.
 - Never describe a `CONDITIONAL` hub as capacity-approved.
-- During `azd up`, stage the final VNet-injected APIM resource first. Continue with VPN,
+- During `azd up`, stage the selected APIM resource first. Continue with VPN,
   App Service, DNS, identity, and Foundry only after APIM reaches `Succeeded`.
 - Explain any model lifecycle or deprecation warning.
 - Record the report timestamp because capacity evidence becomes stale.

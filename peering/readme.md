@@ -14,7 +14,8 @@ resource names/tokens as needed.
 | Hub VNet | `vnet-uisvrqjctoste` in `rg-dev1`, **Canada Central** |
 | Hub address space | **`10.100.0.0/16`** |
 | GatewaySubnet | `10.100.0.0/27` → **VpnGw1AZ** S2S tunnel to on-prem |
-| APIM subnet | `10.100.1.0/24` — **APIM Premium v2 (Internal)**, private IP e.g. `10.100.1.4` |
+| APIM subnet | `10.100.1.0/24` — Premium v2 injection or Standard v2 outbound integration |
+| Standard v2 private-endpoint subnet | `10.100.2.0/27` — present only for `standardV2PrivateLink` |
 | On-prem LAN (via tunnel) | **`192.168.50.0/24`** |
 
 ```mermaid
@@ -22,11 +23,11 @@ flowchart LR
     subgraph Spoke["Foundry spoke VNet 172.16.0.0/16"]
         Foundry["Azure AI Foundry<br/>agent (private)"]
         Deps["Dependencies<br/>Cosmos · AI Search · Storage · Key Vault"]
-        DNS["Private DNS<br/>azure-api.net → 10.100.1.4"]
+        DNS["Private DNS<br/>selected APIM zone → private IP"]
         Foundry --- Deps
     end
     subgraph Hub["Hub VNet 10.100.0.0/16"]
-        APIM["APIM Premium v2<br/>(Internal) 10.100.1.4"]
+        APIM["APIM private gateway<br/>selected profile"]
         GW["VPN Gateway"]
     end
     Foundry -- "VNet peering" --> APIM
@@ -102,13 +103,19 @@ az network vnet peering update -g $SPOKE_RG --vnet-name $SPOKE_VNET -n spoke-to-
 
 ## Step 3 — DNS so the spoke resolves APIM privately
 
-Internal APIM has no public endpoint, so the spoke must resolve `…azure-api.net` to APIM's
-**private** IP. Create/link a private DNS zone and point an A record at the current private IP:
+The spoke must resolve APIM's normal `<name>.azure-api.net` gateway hostname to its
+**private** IP. Use the zone exported as `APIM_PRIVATE_DNS_ZONE`:
+
+- Premium v2 injection: `azure-api.net`, with an explicit A record.
+- Standard v2 Private Link: `privatelink.azure-api.net`; the public hostname CNAME chain
+  resolves through this private zone, whose record is managed by the private DNS zone group.
+
+The `postup` Foundry hook deploys these links and records automatically. For a manual
+Premium v2 setup:
 
 ```bash
-# confirm APIM's current private IP first (Premium v2 assigns it dynamically)
-#   from an on-prem/hub host: nmap -Pn -p443 --open 10.100.1.0/24   (finds the ASE front-end)
-APIM_PRIVATE_IP=10.100.1.4
+# Read the deployment output; do not assume the address.
+APIM_PRIVATE_IP=$(azd env get-value APIM_PRIVATE_IP)
 
 az network private-dns zone create -g $SPOKE_RG -n azure-api.net
 az network private-dns record-set a add-record -g $SPOKE_RG -z azure-api.net \
@@ -117,8 +124,9 @@ az network private-dns link vnet create -g $SPOKE_RG -z azure-api.net \
   -n spoke-link --virtual-network $SPOKE_VNET --registration-enabled false
 ```
 
-> Alternative: an Azure DNS Private Resolver if you centralize DNS. If APIM's private IP changes
-> (it can, on Premium v2), update the A record.
+> Alternative: use Azure DNS Private Resolver if you centralize DNS. Read
+> `APIM_PRIVATE_IP` and `APIM_PRIVATE_DNS_ZONE` from `azd env get-values`; do not scan or
+> hard-code the address.
 
 ---
 
@@ -142,7 +150,7 @@ curl -sk https://apim-uisvrqjctoste.azure-api.net/onprem/json   # should return 
 | Spoke VNet | `172.16.0.0/16` (agent `172.16.0.0/24`, PE `172.16.1.0/24`), **Sweden Central** |
 | Peering | **global** (spoke region ≠ hub region), both directions (Step 1) |
 | Gateway transit | **not required** (agent calls APIM in the hub) |
-| DNS | `azure-api.net` A record `apim-uisvrqjctoste` → `10.100.1.4`, linked to the spoke |
+| DNS | Selected `APIM_PRIVATE_DNS_ZONE` linked to the spoke; APIM hostname resolves to `APIM_PRIVATE_IP` |
 | Result | Foundry agent → peering → hub APIM → tunnel → on-prem container |
 
 > **Region choice (real deployment).** The spoke lives in **Sweden Central**, not the hub's

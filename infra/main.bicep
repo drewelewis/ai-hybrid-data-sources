@@ -28,7 +28,14 @@ param apimPublisherEmail string
 @description('Publisher/organization name shown on the API Management instance.')
 param apimPublisherName string
 
-@description('Scale-out units for API Management Premium v2.')
+@allowed([
+  'premiumV2Injection'
+  'standardV2PrivateLink'
+])
+@description('APIM networking profile. Premium v2 uses full VNet injection; Standard v2 uses Private Link plus outbound VNet integration.')
+param apimNetworkProfile string = 'premiumV2Injection'
+
+@description('Scale-out units for the selected API Management v2 tier.')
 param apimCapacity int = 1
 
 @description('APIM private IP inside the injection subnet (supplied statically because Premium v2 Internal mode returns null).')
@@ -74,6 +81,7 @@ module resources 'resources.bicep' = {
     sharedKey: sharedKey
     apimPublisherEmail: apimPublisherEmail
     apimPublisherName: apimPublisherName
+    apimNetworkProfile: apimNetworkProfile
     apimCapacity: apimCapacity
     apimPrivateIp: apimPrivateIp
     appServiceSkuName: appServiceSkuName
@@ -88,6 +96,9 @@ output VNET_ADDRESS_SPACE string = resources.outputs.vnetAddressSpace
 output VPN_CONNECTION_NAME string = resources.outputs.vpnConnectionName
 output APIM_NAME string = resources.outputs.apimName
 output APIM_GATEWAY_URL string = resources.outputs.apimGatewayUrl
+output APIM_PRIVATE_IP string = resources.outputs.apimPrivateIp
+output APIM_NETWORK_PROFILE string = apimNetworkProfile
+output APIM_PRIVATE_DNS_ZONE string = resources.outputs.apimPrivateDnsZoneName
 output APP_SERVICE_NAME string = resources.outputs.appServiceName
 output APP_SERVICE_URL string = resources.outputs.appServiceDefaultHostName
 output APP_SERVICE_LOCATION string = resources.outputs.appServiceLocation

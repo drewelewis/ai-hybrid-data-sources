@@ -5,6 +5,8 @@ param(
   [string[]]$HubRegions = @('canadacentral', 'centralus', 'eastus2', 'westus3', 'westus2', 'swedencentral', 'uksouth', 'northeurope', 'westeurope'),
   [string[]]$AppRegions = @('canadaeast', 'canadacentral', 'centralus', 'eastus2', 'northeurope', 'swedencentral'),
   [string[]]$FoundryRegions = @('swedencentral', 'centralus', 'eastus2', 'canadacentral', 'northeurope'),
+  [ValidateSet('premiumV2Injection', 'standardV2PrivateLink')]
+  [string]$ApimNetworkProfile = 'premiumV2Injection',
   [string]$AppServiceSku = 'B1',
   [ValidateSet('AnySmall', 'Exact')]
   [string]$ModelSelection = 'AnySmall',
@@ -154,30 +156,34 @@ function Get-OverallStatus {
   return 'PASS'
 }
 
-function Test-ApimPremiumV2Region {
+function Test-ApimRegion {
   param(
     [Parameter(Mandatory)]
     [string]$Region,
     [Parameter(Mandatory)]
-    [object]$SkuResponse
+    [object]$SkuResponse,
+    [Parameter(Mandatory)]
+    [string]$SkuName,
+    [Parameter(Mandatory)]
+    [string]$SkuDisplayName
   )
 
   if (-not $SkuResponse.Succeeded) {
     return [pscustomobject]@{
-      Name = 'APIM Premium v2 subscription SKU'
+      Name = "APIM $SkuDisplayName subscription SKU"
       Status = 'UNKNOWN'
       Detail = "The APIM subscription SKU API could not be queried: $($SkuResponse.Error)"
     }
   }
 
   $regionSkus = @($SkuResponse.Data.value | Where-Object {
-      $_.name -eq 'PremiumV2' -and @($_.locations) -contains $Region
+      $_.name -eq $SkuName -and @($_.locations) -contains $Region
     })
   if ($regionSkus.Count -eq 0) {
     return [pscustomobject]@{
-      Name = 'APIM Premium v2 subscription SKU'
+      Name = "APIM $SkuDisplayName subscription SKU"
       Status = 'FAIL'
-      Detail = "The subscription-scoped APIM SKU API does not list PremiumV2 in $(Get-DisplayName -Region $Region)."
+      Detail = "The subscription-scoped APIM SKU API does not list $SkuName in $(Get-DisplayName -Region $Region)."
     }
   }
 
@@ -191,16 +197,16 @@ function Test-ApimPremiumV2Region {
     )
     $reasonText = if ($reasons.Count -gt 0) { $reasons -join ', ' } else { 'unspecified restriction' }
     return [pscustomobject]@{
-      Name = 'APIM Premium v2 subscription SKU'
+      Name = "APIM $SkuDisplayName subscription SKU"
       Status = 'FAIL'
-      Detail = "The subscription-scoped APIM SKU API restricts PremiumV2 in $(Get-DisplayName -Region $Region): $reasonText."
+      Detail = "The subscription-scoped APIM SKU API restricts $SkuName in $(Get-DisplayName -Region $Region): $reasonText."
     }
   }
 
   return [pscustomobject]@{
-    Name = 'APIM Premium v2 subscription SKU'
+    Name = "APIM $SkuDisplayName subscription SKU"
     Status = 'CONDITIONAL'
-    Detail = "The subscription-scoped APIM SKU API lists PremiumV2 in $(Get-DisplayName -Region $Region) without a formal restriction. Azure does not expose transient physical capacity through this API, so the staged APIM create is the decisive probe."
+    Detail = "The subscription-scoped APIM SKU API lists $SkuName in $(Get-DisplayName -Region $Region) without a formal restriction. This does not guarantee transient physical capacity; the staged APIM create is decisive."
   }
 }
 
@@ -257,10 +263,12 @@ if (-not $appLocationsResponse.Succeeded) {
 $appLocationNames = @($appLocationsResponse.Data | ForEach-Object { $_.name })
 
 $results = [System.Collections.Generic.List[object]]::new()
+$apimSkuName = if ($ApimNetworkProfile -eq 'premiumV2Injection') { 'PremiumV2' } else { 'StandardV2' }
+$apimSkuDisplayName = if ($ApimNetworkProfile -eq 'premiumV2Injection') { 'Premium v2' } else { 'Standard v2' }
 
 foreach ($region in $HubRegions) {
   $checks = @(
-    Test-ApimPremiumV2Region -Region $region -SkuResponse $apimSkuResponse
+    Test-ApimRegion -Region $region -SkuResponse $apimSkuResponse -SkuName $apimSkuName -SkuDisplayName $apimSkuDisplayName
     Test-ProviderRegion `
       -Namespace 'Microsoft.Network' `
       -ResourceType 'virtualNetworkGateways' `
@@ -468,6 +476,8 @@ $report = [ordered]@{
     tenantId = $accountResponse.Data.tenantId
   }
   configuration = [ordered]@{
+    apimNetworkProfile = $ApimNetworkProfile
+    apimSku = $apimSkuName
     appServiceSku = $AppServiceSku
     modelSelection = $ModelSelection
     smallModelPreference = $SmallModelPreference
