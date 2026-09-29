@@ -19,7 +19,7 @@ It solves two problems at once, without exposing any private system to the publi
 >     integration, and public gateway access disabled after the private endpoint is ready.
 > - **Canada East spoke:** a globally peered VNet with an empty Linux App Service. Its
 >   application is maintained and deployed from a separate repository.
-> - **Sweden Central spoke:** the globally peered, network-isolated Azure AI Foundry
+> - **Selected Foundry region:** the globally peered, network-isolated Azure AI Foundry
 >   deployment and its private dependencies. An existing connected deployment is reused.
 > - **Microsoft Entra ID:** separate development and production SPA registrations plus one
 >   shared protected API registration and `Chat.Invoke` delegated scope.
@@ -211,7 +211,7 @@ flowchart LR
         App --- AppVNet
     end
 
-    subgraph SwedenCentral["Sweden Central — Foundry spoke"]
+    subgraph FoundryRegion["Selected region — Foundry spoke"]
         FoundryVNet["agent-vnet<br/>172.16.0.0/16"]
         Foundry["Azure AI Foundry<br/>and private dependencies"]
         Foundry --- FoundryVNet
@@ -488,7 +488,7 @@ az extension add --name quota --upgrade
   -ApimNetworkProfile standardV2PrivateLink `
   -HubRegions canadacentral,centralus `
   -AppRegions canadaeast,eastus2 `
-  -FoundryRegions swedencentral,centralus
+  -FoundryRegions westus3,uksouth,westeurope
 ```
 
 Omit `-ApimNetworkProfile` to check the default `premiumV2Injection` profile. The
@@ -523,7 +523,7 @@ starts with:
 | APIM networking profile | `premiumV2Injection` |
 | Hub / VPN / APIM | Canada Central |
 | Application App Service | Canada East |
-| Foundry spoke | Sweden Central |
+| Foundry spoke | West US 3 |
 | Foundry model | `gpt-5.4-mini` `2026-03-17` (`GlobalStandard`) |
 
 Every run refreshes regional evidence before the picker displays the saved placement and
@@ -561,9 +561,11 @@ its hosting and network infrastructure. `azd up` then **also deploys a network-i
 (foundry-samples template 19) and peers it into the hub, so a single command stands up the
 shared infrastructure. That step adds ~45–60 min and ongoing cost (Cosmos DB, AI Search
 **Basic**, ACR Premium, a model); opt out by answering **No** at the prompt, running
-non-interactively (CI), or setting `AZD_SKIP_FOUNDRY=true`. The recommended Foundry default
-is **Sweden Central** (it peers cross-region back to the hub): the template's Cosmos DB and
-AI Search dependencies had no capacity for this subscription in Canada Central or East US.
+non-interactively (CI), or setting `AZD_SKIP_FOUNDRY=true`. The currently validated Foundry
+default is **West US 3**. During the September 2026 deployment, AI Search Basic lacked
+capacity in Sweden Central and East US 2, while Cosmos DB lacked capacity in Canada Central;
+West US 3 completed all dependencies and the model deployment. These conditions are
+transient, so the read-only preflight still cannot guarantee a successful create.
 On subsequent runs, the post-provision hook detects a Foundry resource group already
 connected to the hub, reuses it, and only reconciles peering, DNS, and APIM configuration
 instead of redeploying the Foundry resources. Set `FOUNDRY_RG` only when intentionally

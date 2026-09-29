@@ -39,16 +39,18 @@ the *only* thing you touch on-prem each cycle is the **gateway public IP**.
 
 ## Before you start — pin these so names don't drift
 
-Reuse the **same azd environment** every cycle (this preserves `resourceToken`, so names,
+Reuse the **same azd environment** every cycle (this preserves `resourceToken`, so hub names,
 subnets, and the APIM FQDN all stay identical):
 
 ```bash
 azd env list                       # confirm the environment you want
-azd env select <your-env-name>     # e.g. dev1
+azd env select <your-env-name>     # e.g. dev4-standardv2
 ```
 
-Do **not** change subscription or region between cycles — either one changes the token and
-every resource name (and the APIM FQDN the Foundry spoke resolves) will differ.
+Do **not** change the subscription or `AZURE_LOCATION` (the hub region) between cycles —
+either one changes the token and every hub resource name, including the APIM FQDN the
+Foundry spoke resolves. `FOUNDRY_REGION` is independent because the Foundry spoke has its
+own resource group.
 
 ---
 
@@ -57,16 +59,19 @@ every resource name (and the APIM FQDN the Foundry spoke resolves) will differ.
 ### 1. Provision
 
 ```bash
-azd auth login
+az login
+az account set --subscription <subscription-id>
+azd auth login --tenant-id <tenant-id>
 azd up
 ```
 
 At the prompt, re-enter the **same** IPsec `sharedKey` and `apimPublisherEmail` you used
 before. Reusing the PSK means the on-prem secret does **not** need editing.
 
-> The `postup` hook then offers to (re)deploy and peer the Foundry spoke — default **Yes**.
-> If the spoke already exists, decline with **n** (or `AZD_SKIP_FOUNDRY=true`) to skip the
-> ~45–60 min redeploy and just refresh peering/DNS manually (Step 4).
+> The `postup` hook detects an existing Foundry spoke connected to the hub and reuses it
+> automatically; it only reconciles peering, DNS, APIM, and RBAC. It prompts before the
+> 45–60 minute Foundry deployment only when no connected spoke exists. Use
+> `AZD_SKIP_FOUNDRY=true` only when you intentionally want to skip reconciliation.
 
 ### 2. Capture the new outputs
 
@@ -82,53 +87,68 @@ azd env get-value AZURE_RESOURCE_GROUP
 
 ### 3. Update the on-prem gateway IP (the only routine on-prem change)
 
-The on-prem endpoint points at the Azure gateway public IP in **three** places: the
-connection's `remote_addrs`, its `remote id`, and the PSK `secrets` id. Update all three to
-the new `VPN_GATEWAY_PUBLIC_IP`.
+On strongSwan 6, the Azure gateway public IP appears in **three** places: the connection's
+`remote_addrs`, its remote identity, and the PSK entry's peer identity. The legacy
+strongSwan 5 configuration in this repo stores it only as `right` and `rightid`; its generic
+`: PSK` entry contains no IP. Update the applicable fields to `VPN_GATEWAY_PUBLIC_IP`; the
+PSK **value** stays unchanged.
 
-**OpenWrt 25.x+ / strongSwan 6 (`swanctl`)** — edit `/etc/swanctl/conf.d/azure.conf`:
+First detect the installed toolchain:
 
 ```sh
+command -v apk opkg
+swanctl --version 2>/dev/null || ipsec version
+```
+
+**OpenWrt 25.x+ / strongSwan 6 (`swanctl`)**:
+
+```sh
+cp /etc/swanctl/conf.d/azure.conf /etc/swanctl/conf.d/azure.conf.bak
+OLD_IP="$(awk '$1 == "remote_addrs" { print $3; exit }' /etc/swanctl/conf.d/azure.conf)"
 NEW_IP="<paste VPN_GATEWAY_PUBLIC_IP>"
-sed -i "s/^\(\s*remote_addrs\s*=\s*\).*/\1${NEW_IP}/" /etc/swanctl/conf.d/azure.conf
-# update the two id = <old ip> lines (remote{} and secrets{}) to the new IP as well
-vi /etc/swanctl/conf.d/azure.conf     # set remote{ id } and secrets{ id } to $NEW_IP
+test -n "$OLD_IP" || { echo "Could not find remote_addrs"; exit 1; }
+sed -i "s/${OLD_IP}/${NEW_IP}/g" /etc/swanctl/conf.d/azure.conf
+grep -E 'remote_addrs|id[[:space:]]*=' /etc/swanctl/conf.d/azure.conf
 swanctl --load-all                    # reload; expect: loaded connection 'azure' + 1 secret
 swanctl --initiate --child azure      # or wait for start_action=start
 swanctl --list-sas                    # success = ESTABLISHED + INSTALLED 192.168.50.0/24 === 10.100.0.0/16
 ```
 
-**OpenWrt ≤ 24.x / strongSwan 5.x (legacy `ipsec.conf`)** — edit `/etc/ipsec.conf`:
+The `grep` output must show the new Azure IP for `remote_addrs`, `remote { id = ... }`, and
+the `secrets` entry. Do not change the local identity.
+
+**OpenWrt ≤ 24.x / strongSwan 5.x (legacy `ipsec.conf`)**:
 
 ```sh
+cp /etc/ipsec.conf /etc/ipsec.conf.bak
+OLD_IP="$(awk -F= '/^[[:space:]]*right=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' /etc/ipsec.conf)"
 NEW_IP="<paste VPN_GATEWAY_PUBLIC_IP>"
-sed -i "s/^\(\s*right=\).*/\1${NEW_IP}/; s/^\(\s*rightid=\).*/\1${NEW_IP}/" /etc/ipsec.conf
+test -n "$OLD_IP" || { echo "Could not find right="; exit 1; }
+sed -i "s/${OLD_IP}/${NEW_IP}/g" /etc/ipsec.conf
+grep -E 'right=|rightid=' /etc/ipsec.conf
 ipsec reload
+ipsec down azure 2>/dev/null
 ipsec up azure
 ipsec statusall                       # look for ESTABLISHED + 192.168.50.0/24 === 10.100.0.0/16
 ```
 
-> Only edit `/etc/ipsec.secrets` (or the `secrets{}` block) if you changed the PSK at the
-> `azd up` prompt. If you reused it, leave the secret alone.
+The strongSwan 6 command updates the peer identity in the `swanctl` `secrets` block but does
+not change its PSK value. The legacy `/etc/ipsec.secrets` needs no edit when it uses the
+documented generic `: PSK` entry. Change the PSK value only if you entered a different
+`sharedKey` during `azd up`.
 
 ### 4. Refresh the Foundry spoke DNS (only if using the spoke)
 
 APIM can land on a **different private IP** after recreate. The Foundry setup hook reads
-`APIM_PRIVATE_IP` and `APIM_PRIVATE_DNS_ZONE` from the deployment and reconciles the private
-DNS record and VNet links. Re-run the setup hook instead of scanning the subnet:
+`APIM_PRIVATE_IP` and `APIM_PRIVATE_DNS_ZONE`, detects the connected spoke, and reconciles
+the private DNS record, VNet links, APIM backend/API, and RBAC. Run the hook directly if
+`azd up` skipped or failed during `postup`:
 
 ```bash
-# Re-run the peering + DNS module against the still-existing spoke:
-az deployment sub create -l <region> \
-  --template-file peering/peering.bicep \
-  --parameters hubResourceGroup=$(azd env get-value AZURE_RESOURCE_GROUP) \
-               hubVnetName=<hub-vnet> spokeResourceGroup=<spoke-rg> spokeVnetName=<spoke-vnet> \
-               apimName=$(azd env get-value APIM_NAME) \
-               apimPrivateIp=$(azd env get-value APIM_PRIVATE_IP) \
-               apimPrivateDnsZone=$(azd env get-value APIM_PRIVATE_DNS_ZONE)
+pwsh -NoProfile -File ./scripts/setup-foundry.ps1
 ```
 
-See [peering/readme.md](peering/readme.md) for the full peering + DNS walkthrough.
+See [peering/readme.md](../peering/readme.md) for the full peering + DNS walkthrough.
 
 ---
 
@@ -155,8 +175,16 @@ azd down                                   # removes the hub RG (VNet, VPN gw, A
 ```
 
 The **Foundry spoke is not** removed by `azd down` — tear it down manually in
-capability-host purge order (see [peering/readme.md](peering/readme.md) and foundry-samples
+capability-host purge order (see [peering/readme.md](../peering/readme.md) and foundry-samples
 template 19 cleanup) if you want to drop its ongoing cost too.
+
+> **Failed Foundry retry:** deleting a failed Foundry resource group does not immediately
+> release its Key Vault or Cognitive Services names because both services retain soft-deleted
+> resources. Retry with a fresh `FOUNDRY_RG` name (which generates a new deterministic
+> suffix), or purge the deleted resources before reusing the original group name. Also rerun
+> regional preflight: in the September 2026 deployment, West US 3 succeeded after AI Search
+> capacity failures in Sweden Central and East US 2 and a Cosmos DB capacity failure in
+> Canada Central.
 
 ---
 

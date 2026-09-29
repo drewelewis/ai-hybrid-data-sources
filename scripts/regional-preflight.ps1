@@ -4,7 +4,7 @@ param(
   [string]$SubscriptionId,
   [string[]]$HubRegions = @('canadacentral', 'centralus', 'eastus2', 'westus3', 'westus2', 'swedencentral', 'uksouth', 'northeurope', 'westeurope'),
   [string[]]$AppRegions = @('canadaeast', 'canadacentral', 'centralus', 'eastus2', 'northeurope', 'swedencentral'),
-  [string[]]$FoundryRegions = @('swedencentral', 'centralus', 'eastus2', 'canadacentral', 'northeurope'),
+  [string[]]$FoundryRegions = @('westus3', 'uksouth', 'westeurope', 'canadaeast', 'swedencentral', 'eastus2', 'canadacentral', 'northeurope'),
   [ValidateSet('premiumV2Injection', 'standardV2PrivateLink')]
   [string]$ApimNetworkProfile = 'premiumV2Injection',
   [string]$AppServiceSku = 'B1',

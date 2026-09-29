@@ -88,8 +88,7 @@ if (-not $env:FOUNDRY_RG) {
 }
 
 # --- Spoke params (env overrides or defaults). 10.x is NOT allowed in Canada Central -> 172.16/16. ---
-# Region defaults to Sweden Central: Canada Central and East US lacked Cosmos DB / AI Search
-# capacity for this subscription (deploy failed there). Cross-region peers to the CC hub.
+# West US 3 is the first region where this subscription completed all Foundry dependencies.
 if (-not $reuseExisting) {
   Write-Host 'INCLUDED by default: deploy a network-isolated Foundry spoke (template 19) and peer it to the hub' -ForegroundColor Yellow
   Write-Host '  so a private agent can reach APIM (and on-prem data) over the peering.' -ForegroundColor Yellow
@@ -99,7 +98,7 @@ if (-not $reuseExisting) {
   catch { Write-Host 'Non-interactive — skipping.'; exit 0 }
   if ($ans -match '^(n|no)$') { Write-Host 'Declined. Re-run scripts/setup-foundry.ps1 anytime to do it.'; exit 0 }
 
-  $region  = if ($env:FOUNDRY_REGION) { $env:FOUNDRY_REGION } elseif ($configuredFoundryRegion) { $configuredFoundryRegion } else { 'swedencentral' }
+  $region  = if ($env:FOUNDRY_REGION) { $env:FOUNDRY_REGION } elseif ($configuredFoundryRegion) { $configuredFoundryRegion } else { 'westus3' }
   $spokeRg = if ($env:FOUNDRY_RG) { $env:FOUNDRY_RG } else { "rg-foundry-$envName" }
 }
 $spokeCidr = if ($env:FOUNDRY_VNET_CIDR) { $env:FOUNDRY_VNET_CIDR } else { '172.16.0.0/16' }
@@ -160,7 +159,7 @@ $escapedCorsOrigins = $corsOrigins.Replace('"', '\"')
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Write-Host "Peering $spokeVnet <-> $hubVnet, DNS, and publishing Foundry '$foundryAcct' as an APIM backend..." -ForegroundColor Cyan
-az deployment sub create --subscription $subscriptionId -l $region --template-file (Join-Path $repoRoot 'peering/peering.bicep') `
+az deployment sub create --name "peering-$envName-$region" --subscription $subscriptionId -l $region --template-file (Join-Path $repoRoot 'peering/peering.bicep') `
   --parameters hubResourceGroup=$hubRg hubVnetName=$hubVnet spokeResourceGroup=$spokeRg spokeVnetName=$spokeVnet `
                apimName=$apimName apimPrivateIp=$apimIp apimPrivateDnsZone=$apimPrivateDnsZone `
                wireFoundryBackend=true foundryResourceGroup=$spokeRg foundryAccountName=$foundryAcct `

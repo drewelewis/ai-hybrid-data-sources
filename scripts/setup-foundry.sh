@@ -59,7 +59,7 @@ if [ "$reuseExisting" = false ]; then
   read ans
   case "$ans" in n|N|no|NO) echo "Declined. Re-run scripts/setup-foundry.sh anytime."; exit 0;; *) ;; esac
 
-  region=${FOUNDRY_REGION:-${configuredFoundryRegion:-swedencentral}}   # CC/East US lacked Cosmos+AI Search capacity; peers cross-region to CC hub
+  region=${FOUNDRY_REGION:-${configuredFoundryRegion:-westus3}}
   spokeRg=${FOUNDRY_RG:-rg-foundry-$envName}
 fi
 spokeCidr=${FOUNDRY_VNET_CIDR:-172.16.0.0/16}   # 10.x not allowed in Canada Central
@@ -104,7 +104,7 @@ foundryDeployment=$(az cognitiveservices account deployment list --subscription 
 
 repoRoot=$(cd "$(dirname "$0")/.." && pwd)
 echo "Peering $spokeVnet <-> $hubVnet, DNS, and publishing Foundry '$foundryAcct' as an APIM backend..."
-az deployment sub create --subscription "$subscriptionId" -l "$region" --template-file "$repoRoot/peering/peering.bicep" \
+az deployment sub create --name "peering-$envName-$region" --subscription "$subscriptionId" -l "$region" --template-file "$repoRoot/peering/peering.bicep" \
   --parameters hubResourceGroup="$hubRg" hubVnetName="$hubVnet" spokeResourceGroup="$spokeRg" spokeVnetName="$spokeVnet" \
                apimName="$apimName" apimPrivateIp="$apimIp" apimPrivateDnsZone="$apimPrivateDnsZone" \
                wireFoundryBackend=true foundryResourceGroup="$spokeRg" foundryAccountName="$foundryAcct" \
