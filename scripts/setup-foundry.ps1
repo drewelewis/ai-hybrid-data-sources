@@ -46,6 +46,27 @@ $configuredFoundryModel = Get-AzdOptionalValue -Name 'FOUNDRY_MODEL'
 $configuredFoundryModelVersion = Get-AzdOptionalValue -Name 'FOUNDRY_MODEL_VERSION'
 $apimIp = Get-AzdOptionalValue -Name 'APIM_PRIVATE_IP'
 $apimPrivateDnsZone = Get-AzdOptionalValue -Name 'APIM_PRIVATE_DNS_ZONE'
+if (-not $apimIp) {
+  $apimPrivateEndpointName = "pep-$apimName"
+  $apimNetworkInterfaceId = Get-AzCliText -Arguments @(
+    'network', 'private-endpoint', 'show',
+    '--subscription', $subscriptionId,
+    '--resource-group', $hubRg,
+    '--name', $apimPrivateEndpointName,
+    '--query', 'networkInterfaces[0].id',
+    '--output', 'tsv',
+    '--only-show-errors'
+  )
+  if ($apimNetworkInterfaceId) {
+    $apimIp = Get-AzCliText -Arguments @(
+      'network', 'nic', 'show',
+      '--ids', $apimNetworkInterfaceId,
+      '--query', 'ipConfigurations[0].privateIPAddress',
+      '--output', 'tsv',
+      '--only-show-errors'
+    )
+  }
+}
 if (-not $apimIp -or -not $apimPrivateDnsZone) {
   throw 'APIM_PRIVATE_IP and APIM_PRIVATE_DNS_ZONE outputs are required. Run azd provision before Foundry setup.'
 }
@@ -110,6 +131,7 @@ $modelVer  = if ($env:FOUNDRY_MODEL_VERSION) { $env:FOUNDRY_MODEL_VERSION } else
 # registrations provisioned by the main Bicep deployment.
 $provisionedTenantId = (azd env get-value ENTRA_TENANT_ID 2>$null)
 $provisionedAudience = (azd env get-value ENTRA_API_AUDIENCE 2>$null)
+$mappingBlobUrl = (azd env get-value MAPPING_BLOB_URL 2>$null).Trim()
 $entraTenantId = if ($env:ENTRA_TENANT_ID) { $env:ENTRA_TENANT_ID } else { $provisionedTenantId.Trim() }
 $jwtAudience   = if ($env:JWT_AUDIENCE) { $env:JWT_AUDIENCE } else { $provisionedAudience.Trim() }
 $corsOrigins   = if ($env:CORS_ORIGINS) { $env:CORS_ORIGINS } else { '["http://localhost:5173"]' }
@@ -165,6 +187,7 @@ az deployment sub create --name "peering-$envName-$region" --subscription $subsc
                wireFoundryBackend=true foundryResourceGroup=$spokeRg foundryAccountName=$foundryAcct `
                foundryEndpoint=$foundryEndpoint foundryDeploymentName=$foundryDeployment `
                entraTenantId=$entraTenantId jwtAudience=$jwtAudience allowedCorsOrigins=$escapedCorsOrigins `
+               mappingBlobUrl=$mappingBlobUrl `
   --only-show-errors
 if ($LASTEXITCODE -ne 0) { throw "Peering/DNS deployment failed (exit $LASTEXITCODE). See errors above." }
 

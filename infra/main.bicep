@@ -47,6 +47,23 @@ param appServiceSkuName string = 'B1'
 @description('Azure location for the App Service plan and its regional VNet integration spoke.')
 param appServiceLocation string = 'canadaeast'
 
+@allowed([
+  30
+  60
+  90
+  120
+  180
+  270
+  365
+])
+@description('Log Analytics retention in days for APIM observability.')
+param apimLogRetentionDays int = 30
+
+@minValue(0)
+@maxValue(100)
+@description('Percentage of successful APIM requests sent to Application Insights. Errors are always logged.')
+param apimTelemetrySamplingPercentage int = 100
+
 var tags = { 'azd-env-name': environmentName }
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 
@@ -86,6 +103,8 @@ module resources 'resources.bicep' = {
     apimPrivateIp: apimPrivateIp
     appServiceSkuName: appServiceSkuName
     appServiceLocation: appServiceLocation
+    apimLogRetentionDays: apimLogRetentionDays
+    apimTelemetrySamplingPercentage: apimTelemetrySamplingPercentage
   }
 }
 
@@ -99,6 +118,23 @@ output APIM_GATEWAY_URL string = resources.outputs.apimGatewayUrl
 output APIM_PRIVATE_IP string = resources.outputs.apimPrivateIp
 output APIM_NETWORK_PROFILE string = apimNetworkProfile
 output APIM_PRIVATE_DNS_ZONE string = resources.outputs.apimPrivateDnsZoneName
+output MAPPING_STORAGE_ACCOUNT string = resources.outputs.mappingStorageAccountName
+output MAPPING_CONTAINER string = resources.outputs.mappingContainerName
+output MAPPING_BLOB_NAME string = resources.outputs.mappingBlobName
+output MAPPING_BLOB_URL string = resources.outputs.mappingBlobUrl
+output MAPPING_STORAGE_PRIVATE_IP string = resources.outputs.mappingStoragePrivateIp
+output LOG_ANALYTICS_WORKSPACE string = resources.outputs.logAnalyticsWorkspaceName
+output APPLICATION_INSIGHTS_NAME string = resources.outputs.applicationInsightsName
+output MONITOR_PRIVATE_LINK_SCOPE string = resources.outputs.monitorPrivateLinkScopeName
+output MONITOR_PRIVATE_ENDPOINT_IP string = resources.outputs.monitorPrivateEndpointIp
+output OBSERVABILITY_WORKBOOK_ID string = resources.outputs.observabilityWorkbookId
+output OBSERVABILITY_WORKBOOK_NAME string = resources.outputs.observabilityWorkbookName
+output AI_GATEWAY_USAGE_WORKBOOK_ID string = resources.outputs.aiGatewayUsageWorkbookId
+output AI_GATEWAY_USAGE_WORKBOOK_NAME string = resources.outputs.aiGatewayUsageWorkbookName
+output AI_GATEWAY_DIMENSION_VALUES_WORKBOOK_ID string = resources.outputs.aiGatewayDimensionValuesWorkbookId
+output AI_GATEWAY_DIMENSION_VALUES_WORKBOOK_NAME string = resources.outputs.aiGatewayDimensionValuesWorkbookName
+output APIM_LIMIT_DEBUG_WORKBOOK_ID string = resources.outputs.apimLimitDebugWorkbookId
+output APIM_LIMIT_DEBUG_WORKBOOK_NAME string = resources.outputs.apimLimitDebugWorkbookName
 output APP_SERVICE_NAME string = resources.outputs.appServiceName
 output APP_SERVICE_URL string = resources.outputs.appServiceDefaultHostName
 output APP_SERVICE_LOCATION string = resources.outputs.appServiceLocation

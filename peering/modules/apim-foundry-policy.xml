@@ -1,0 +1,526 @@
+<policies>
+  <inbound>
+    <base />
+    <cors allow-credentials="false">
+      <allowed-origins>__CORS_ORIGINS__</allowed-origins>
+      <allowed-methods>
+        <method>OPTIONS</method>
+        <method>POST</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>Authorization</header>
+        <header>Content-Type</header>
+      </allowed-headers>
+    </cors>
+    __VALIDATE_JWT__
+    <set-variable name="llmmgmt-debug-tracing-enabled" value="@{
+      bool enabled;
+      return bool.TryParse(&quot;__DEBUG_TRACING_ENABLED__&quot;, out enabled)
+        &amp;&amp; enabled
+        &amp;&amp; string.Equals(context.Subscription?.Id ?? string.Empty, &quot;__DEBUG_TRACING_SUBSCRIPTION_ID__&quot;, StringComparison.OrdinalIgnoreCase)
+        &amp;&amp; string.Equals(context.Api?.Id ?? string.Empty, &quot;__DEBUG_TRACING_API_ID__&quot;, StringComparison.OrdinalIgnoreCase)
+        &amp;&amp; DateTime.UtcNow &lt; DateTime.Parse(&quot;__DEBUG_TRACING_EXPIRY_UTC__&quot;);
+    }" />
+    <set-variable name="llmmgmt-backend-attempt" value="@((int)0)" />
+    <cache-lookup-value key="llmmgmt-mapping" default-value="" variable-name="llmmgmt-mapping" caching-type="internal" />
+    <choose>
+      <when condition="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;)))">
+        <choose>
+          <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+            <trace source="llmmgmt-branch-debug" severity="information">
+              <message>mapping.cache.miss</message>
+              <metadata name="event" value="mapping.cache.miss" />
+              <metadata name="requestId" value="@(context.RequestId.ToString())" />
+              <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+              <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+              <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+              <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+            </trace>
+          </when>
+        </choose>
+        <send-request mode="new" timeout="20" response-variable-name="llmmgmt-mapping-response" ignore-error="true">
+          <set-url>__MAPPING_BLOB_URL__</set-url>
+          <set-method>GET</set-method>
+          <set-header name="x-ms-version" exists-action="override">
+            <value>2019-07-07</value>
+          </set-header>
+          <authentication-managed-identity resource="https://storage.azure.com/" />
+        </send-request>
+        <choose>
+          <when condition="@{
+            var response = context.Variables.GetValueOrDefault&lt;IResponse&gt;(&quot;llmmgmt-mapping-response&quot;);
+            return response != null &amp;&amp; response.StatusCode == 200;
+          }">
+            <set-variable name="llmmgmt-mapping" value="@{
+              var response = (IResponse)context.Variables[&quot;llmmgmt-mapping-response&quot;];
+              var source = JObject.Parse(response.Body.As&lt;string&gt;());
+              var result = new JObject();
+
+              foreach (var product in source)
+              {
+                var productConfig = (JObject)product.Value.DeepClone();
+                var deployments = productConfig[&quot;deployments&quot;] as JArray;
+                productConfig.Remove(&quot;deployments&quot;);
+                var models = new JArray();
+
+                if (deployments != null)
+                {
+                  foreach (JObject deployment in deployments)
+                  {
+                    var model = (JObject)productConfig.DeepClone();
+                    model.Merge(deployment);
+                    model[&quot;model&quot;] = deployment.Value&lt;string&gt;(&quot;name&quot;);
+                    model[&quot;deploymentName&quot;] = deployment.Value&lt;string&gt;(&quot;deploymentName&quot;)
+                      ?? deployment.Value&lt;string&gt;(&quot;name&quot;);
+                    models.Add(model);
+                  }
+                }
+
+                result[&quot;openai-&quot; + product.Key] = models;
+              }
+
+              return result.ToString(Newtonsoft.Json.Formatting.None);
+            }" />
+            <cache-store-value key="llmmgmt-mapping" value="@((string)context.Variables[&quot;llmmgmt-mapping&quot;])" duration="60" caching-type="internal" />
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="information">
+                  <message>mapping.fetch.success</message>
+                  <metadata name="event" value="mapping.fetch.success" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                </trace>
+              </when>
+            </choose>
+          </when>
+          <otherwise>
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="error">
+                  <message>mapping.fetch.failure</message>
+                  <metadata name="event" value="mapping.fetch.failure" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                </trace>
+              </when>
+            </choose>
+          </otherwise>
+        </choose>
+      </when>
+      <otherwise>
+        <choose>
+          <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+            <trace source="llmmgmt-branch-debug" severity="information">
+              <message>mapping.cache.hit</message>
+              <metadata name="event" value="mapping.cache.hit" />
+              <metadata name="requestId" value="@(context.RequestId.ToString())" />
+              <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+              <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+              <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+              <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+            </trace>
+          </when>
+        </choose>
+      </otherwise>
+    </choose>
+    <choose>
+      <when condition="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;)))">
+        <return-response>
+          <set-status code="503" reason="Model mapping unavailable" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error":{"code":"503","message":"The model mapping is temporarily unavailable.","source":"LLMMGMT"}}</set-body>
+        </return-response>
+      </when>
+    </choose>
+    <set-variable name="llmmgmt-model" value="@(context.Request.MatchedParameters.GetValueOrDefault(&quot;deployment-id&quot;, &quot;&quot;))" />
+    <set-variable name="llmmgmt-config" value="@{
+      var mappingJson = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;);
+      var mapping = string.IsNullOrWhiteSpace(mappingJson) ? null : JObject.Parse(mappingJson);
+      var modelName = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;);
+
+      if (mapping == null || string.IsNullOrWhiteSpace(modelName) || context.Product?.Id == null)
+      {
+        return null;
+      }
+
+      if (!mapping.TryGetValue(context.Product.Id, StringComparison.OrdinalIgnoreCase, out var productToken)
+        || !(productToken is JArray productModels))
+      {
+        return null;
+      }
+
+      return productModels
+        .Cast&lt;JObject&gt;()
+        .FirstOrDefault(candidate =&gt;
+          string.Equals(candidate.Value&lt;string&gt;(&quot;model&quot;), modelName, StringComparison.OrdinalIgnoreCase));
+    }" />
+    <choose>
+      <when condition="@(context.Variables.GetValueOrDefault&lt;JObject&gt;(&quot;llmmgmt-config&quot;) != null)">
+        <choose>
+          <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+            <trace source="llmmgmt-branch-debug" severity="information">
+              <message>config.found</message>
+              <metadata name="event" value="config.found" />
+              <metadata name="requestId" value="@(context.RequestId.ToString())" />
+              <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+              <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+              <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+              <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+              <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+              <metadata name="backendId" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;backendId&quot;, StringComparison.OrdinalIgnoreCase, out var backendId) ? backendId.Value&lt;string&gt;() : string.Empty)" />
+            </trace>
+          </when>
+        </choose>
+        <set-backend-service backend-id="@{
+          var config = (JObject)context.Variables[&quot;llmmgmt-config&quot;];
+          return config.TryGetValue(&quot;backendId&quot;, StringComparison.OrdinalIgnoreCase, out var backendId)
+            ? backendId.Value&lt;string&gt;()
+            : string.Empty;
+        }" />
+        <llm-emit-token-metric namespace="AI-Gateway">
+          <dimension name="Product ID" />
+          <dimension name="Subscription ID" />
+          <dimension name="Backend ID" />
+          <dimension name="Deployment" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;))" />
+        </llm-emit-token-metric>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxCallsPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuMaxCalls) &amp;&amp; skuMaxCalls.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="skuGlobalMaxCallsPerMinute" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;])[&quot;skuGlobalMaxCallsPerMinute&quot;].Value&lt;int&gt;())" />
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="information">
+                  <message>rpm.configured</message>
+                  <metadata name="event" value="rpm.configured" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                  <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                  <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())" />
+                </trace>
+              </when>
+            </choose>
+            <rate-limit-by-key calls="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;])[&quot;skuGlobalMaxCallsPerMinute&quot;].Value&lt;int&gt;())" renewal-period="60" counter-key="@(context.Subscription.Id + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;&quot;))" remaining-calls-variable-name="llmmgmt-remaining-calls" retry-after-header-name="x-llmmgmt-retry-after" remaining-calls-header-name="x-llmmgmt-ratelimit-remaining-calls" retry-after-variable-name="llmmgmt-retry-after" />
+          </when>
+          <otherwise>
+            <set-variable name="skuGlobalMaxCallsPerMinute" value="@((int)20000)" />
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="information">
+                  <message>rpm.fallback-20000</message>
+                  <metadata name="event" value="rpm.fallback-20000" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                  <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                  <metadata name="configuredLimit" value="20000" />
+                </trace>
+              </when>
+            </choose>
+            <rate-limit-by-key calls="20000" renewal-period="60" counter-key="@(context.Subscription.Id + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;&quot;))" remaining-calls-variable-name="llmmgmt-remaining-calls" retry-after-header-name="x-llmmgmt-retry-after" remaining-calls-header-name="x-llmmgmt-ratelimit-remaining-calls" retry-after-variable-name="llmmgmt-retry-after" />
+          </otherwise>
+        </choose>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) &amp;&amp; maxTokensPerMinute.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="maxTotalTokens" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" />
+            <choose>
+              <when condition="@(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;).Contains(&quot;multipart/form-data&quot;))">
+                <choose>
+                  <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                    <trace source="llmmgmt-branch-debug" severity="information">
+                      <message>model-tpm.multipart</message>
+                      <metadata name="event" value="model-tpm.multipart" />
+                      <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                      <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                      <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                      <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                      <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                      <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                      <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())" />
+                      <metadata name="estimatePromptTokens" value="false" />
+                    </trace>
+                  </when>
+                </choose>
+                <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+              </when>
+              <otherwise>
+                <choose>
+                  <when condition="@(context.Request.Method == &quot;POST&quot; &amp;&amp; context.Request.Body.As&lt;JObject&gt;(preserveContent: true).ContainsKey(&quot;stream&quot;) ? (bool)context.Request.Body.As&lt;JObject&gt;(preserveContent: true)[&quot;stream&quot;] == true : false)">
+                    <choose>
+                      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                        <trace source="llmmgmt-branch-debug" severity="information">
+                          <message>model-tpm.streaming</message>
+                          <metadata name="event" value="model-tpm.streaming" />
+                          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                          <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                          <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                          <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                          <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())" />
+                          <metadata name="estimatePromptTokens" value="true" />
+                        </trace>
+                      </when>
+                    </choose>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="true" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+                  </when>
+                  <otherwise>
+                    <choose>
+                      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                        <trace source="llmmgmt-branch-debug" severity="information">
+                          <message>model-tpm.nonstreaming</message>
+                          <metadata name="event" value="model-tpm.nonstreaming" />
+                          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                          <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                          <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                          <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                          <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())" />
+                          <metadata name="estimatePromptTokens" value="false" />
+                        </trace>
+                      </when>
+                    </choose>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+                  </otherwise>
+                </choose>
+              </otherwise>
+            </choose>
+          </when>
+          <otherwise>
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="information">
+                  <message>model-tpm.disabled</message>
+                  <metadata name="event" value="model-tpm.disabled" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                  <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                </trace>
+              </when>
+            </choose>
+          </otherwise>
+        </choose>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) &amp;&amp; skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="skuMaxTotalTokens" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" />
+            <choose>
+              <when condition="@(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;).Contains(&quot;multipart/form-data&quot;))">
+                <choose>
+                  <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                    <trace source="llmmgmt-branch-debug" severity="information">
+                      <message>sku-tpm.multipart</message>
+                      <metadata name="event" value="sku-tpm.multipart" />
+                      <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                      <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                      <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                      <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                      <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                      <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                      <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())" />
+                      <metadata name="estimatePromptTokens" value="false" />
+                    </trace>
+                  </when>
+                </choose>
+                <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+              </when>
+              <otherwise>
+                <choose>
+                  <when condition="@(context.Request.Method == &quot;POST&quot; &amp;&amp; context.Request.Body.As&lt;JObject&gt;(preserveContent: true).ContainsKey(&quot;stream&quot;) ? (bool)context.Request.Body.As&lt;JObject&gt;(preserveContent: true)[&quot;stream&quot;] == true : false)">
+                    <choose>
+                      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                        <trace source="llmmgmt-branch-debug" severity="information">
+                          <message>sku-tpm.streaming</message>
+                          <metadata name="event" value="sku-tpm.streaming" />
+                          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                          <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                          <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                          <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                          <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())" />
+                          <metadata name="estimatePromptTokens" value="true" />
+                        </trace>
+                      </when>
+                    </choose>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="true" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+                  </when>
+                  <otherwise>
+                    <choose>
+                      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                        <trace source="llmmgmt-branch-debug" severity="information">
+                          <message>sku-tpm.nonstreaming</message>
+                          <metadata name="event" value="sku-tpm.nonstreaming" />
+                          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                          <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                          <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                          <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                          <metadata name="configuredLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())" />
+                          <metadata name="estimatePromptTokens" value="false" />
+                        </trace>
+                      </when>
+                    </choose>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+                  </otherwise>
+                </choose>
+              </otherwise>
+            </choose>
+          </when>
+          <otherwise>
+            <choose>
+              <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+                <trace source="llmmgmt-branch-debug" severity="information">
+                  <message>sku-tpm.disabled</message>
+                  <metadata name="event" value="sku-tpm.disabled" />
+                  <metadata name="requestId" value="@(context.RequestId.ToString())" />
+                  <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+                  <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+                  <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+                  <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+                  <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+                </trace>
+              </when>
+            </choose>
+          </otherwise>
+        </choose>
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com/" />
+      </when>
+      <otherwise>
+        <choose>
+          <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+            <trace source="llmmgmt-branch-debug" severity="information">
+              <message>config.not-found</message>
+              <metadata name="event" value="config.not-found" />
+              <metadata name="requestId" value="@(context.RequestId.ToString())" />
+              <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+              <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+              <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+              <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+              <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+            </trace>
+          </when>
+        </choose>
+        <return-response>
+          <set-status code="404" reason="Deployment Not Found" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>@{
+            var model = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;unknown&quot;);
+            return new JObject(
+              new JProperty(&quot;error&quot;, new JObject(
+                new JProperty(&quot;code&quot;, &quot;404&quot;),
+                new JProperty(&quot;message&quot;, $&quot;Deployment '{model}' is not enabled for this product.&quot;),
+                new JProperty(&quot;source&quot;, &quot;LLMMGMT&quot;)
+              ))
+            ).ToString(Newtonsoft.Json.Formatting.None);
+          }</set-body>
+        </return-response>
+      </otherwise>
+    </choose>
+  </inbound>
+  <backend>
+    <retry condition="@(context.Response.StatusCode == 408 || context.Response.StatusCode == 429 || context.Response.StatusCode &gt;= 500)" count="3" interval="3" first-fast-retry="false">
+      <set-variable name="llmmgmt-backend-attempt" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;llmmgmt-backend-attempt&quot;, 0) + 1)" />
+      <choose>
+        <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+          <trace source="llmmgmt-branch-debug" severity="information">
+            <message>backend.attempt</message>
+            <metadata name="event" value="backend.attempt" />
+            <metadata name="requestId" value="@(context.RequestId.ToString())" />
+            <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+            <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+            <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+            <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+            <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+            <metadata name="attempt" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;llmmgmt-backend-attempt&quot;, 0).ToString())" />
+            <metadata name="previousStatusCode" value="@(context.Response == null ? string.Empty : context.Response.StatusCode.ToString())" />
+          </trace>
+        </when>
+      </choose>
+      <forward-request buffer-request-body="true" buffer-response="false" timeout="840" />
+    </retry>
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="x-llmmgmt-request-id" exists-action="override">
+      <value>@(context.RequestId.ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-model-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-sku-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit-calls" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-product-ratelimit-consumed" exists-action="override">
+      <value>@(context.Response.Headers.GetValueOrDefault(&quot;x-llmmgmt-sku-ratelimit-consumed&quot;, &quot;&quot;))</value>
+    </set-header>
+    <set-header name="x-llmmgmt-product-ratelimit-remaining" exists-action="override">
+      <value>@(context.Response.Headers.GetValueOrDefault(&quot;x-llmmgmt-sku-ratelimit-remaining&quot;, &quot;&quot;))</value>
+    </set-header>
+    <choose>
+      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+        <trace source="llmmgmt-branch-debug" severity="information">
+          <message>outbound.summary</message>
+          <metadata name="event" value="outbound.summary" />
+          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+          <metadata name="operationId" value="@(context.Operation?.Id ?? string.Empty)" />
+          <metadata name="productId" value="@(context.Product?.Id ?? string.Empty)" />
+          <metadata name="subscriptionId" value="@(context.Subscription?.Id ?? string.Empty)" />
+          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+          <metadata name="statusCode" value="@(context.Response.StatusCode.ToString())" />
+          <metadata name="backendAttempts" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;llmmgmt-backend-attempt&quot;, 0).ToString())" />
+          <metadata name="rpmLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())" />
+          <metadata name="rpmRemaining" value="@(context.Variables.ContainsKey(&quot;llmmgmt-remaining-calls&quot;) ? Convert.ToString(context.Variables[&quot;llmmgmt-remaining-calls&quot;]) : string.Empty)" />
+          <metadata name="modelTpmLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())" />
+          <metadata name="modelTpmRemaining" value="@(context.Variables.ContainsKey(&quot;x-llmmgmt-model-ratelimit-remaining&quot;) ? Convert.ToString(context.Variables[&quot;x-llmmgmt-model-ratelimit-remaining&quot;]) : string.Empty)" />
+          <metadata name="modelTokensConsumed" value="@(context.Variables.ContainsKey(&quot;consumedModeltokens&quot;) ? Convert.ToString(context.Variables[&quot;consumedModeltokens&quot;]) : string.Empty)" />
+          <metadata name="skuTpmLimit" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())" />
+          <metadata name="skuTpmRemaining" value="@(context.Variables.ContainsKey(&quot;x-llmmgmt-sku-ratelimit-remaining&quot;) ? Convert.ToString(context.Variables[&quot;x-llmmgmt-sku-ratelimit-remaining&quot;]) : string.Empty)" />
+          <metadata name="skuTokensConsumed" value="@(context.Variables.ContainsKey(&quot;consumedSkutokens&quot;) ? Convert.ToString(context.Variables[&quot;consumedSkutokens&quot;]) : string.Empty)" />
+        </trace>
+      </when>
+    </choose>
+  </outbound>
+  <on-error>
+    <base />
+    <set-header name="x-llmmgmt-request-id" exists-action="override">
+      <value>@(context.RequestId.ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-model-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-sku-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit-calls" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())</value>
+    </set-header>
+  </on-error>
+</policies>

@@ -45,6 +45,23 @@ param appServiceSkuName string = 'B1'
 @description('Azure location for the App Service plan and its regional VNet integration spoke.')
 param appServiceLocation string = 'canadaeast'
 
+@allowed([
+  30
+  60
+  90
+  120
+  180
+  270
+  365
+])
+@description('Log Analytics retention in days for APIM observability.')
+param apimLogRetentionDays int = 30
+
+@minValue(0)
+@maxValue(100)
+@description('Percentage of successful APIM requests sent to Application Insights. Errors are always logged.')
+param apimTelemetrySamplingPercentage int = 100
+
 // ---- Addressing (clear of on-prem 192.168.50.0/24 and WAN 192.168.1.0/24) ----
 var vnetAddressPrefix = '10.100.0.0/16'
 var gatewaySubnetPrefix = '10.100.0.0/27'
@@ -56,6 +73,7 @@ var usePremiumV2Injection = apimNetworkProfile == 'premiumV2Injection'
 var apimSkuName = usePremiumV2Injection ? 'PremiumV2' : 'StandardV2'
 var apimDnsZoneName = usePremiumV2Injection ? 'azure-api.net' : 'privatelink.azure-api.net'
 var apimSubnetName = usePremiumV2Injection ? 'apim' : 'snet-apim-outbound'
+var privateEndpointSubnetName = 'snet-apim-private-endpoint'
 
 // Both v2 networking models require outbound 443 to Key Vault on their delegated subnet.
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
@@ -89,44 +107,38 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     addressSpace: {
       addressPrefixes: [ vnetAddressPrefix ]
     }
-    subnets: concat(
-      [
-        {
-          name: 'GatewaySubnet'
-          properties: {
-            addressPrefix: gatewaySubnetPrefix
-          }
+    subnets: [
+      {
+        name: 'GatewaySubnet'
+        properties: {
+          addressPrefix: gatewaySubnetPrefix
         }
-        {
-          name: apimSubnetName
-          properties: {
-            addressPrefix: apimSubnetPrefix
-            networkSecurityGroup: {
-              id: nsg.id
-            }
-            delegations: [
-              {
-                name: 'apim-delegation'
-                properties: {
-                  serviceName: usePremiumV2Injection ? 'Microsoft.Web/hostingEnvironments' : 'Microsoft.Web/serverFarms'
-                }
+      }
+      {
+        name: apimSubnetName
+        properties: {
+          addressPrefix: apimSubnetPrefix
+          networkSecurityGroup: {
+            id: nsg.id
+          }
+          delegations: [
+            {
+              name: 'apim-delegation'
+              properties: {
+                serviceName: usePremiumV2Injection ? 'Microsoft.Web/hostingEnvironments' : 'Microsoft.Web/serverFarms'
               }
-            ]
-          }
-        }
-      ],
-      usePremiumV2Injection
-        ? []
-        : [
-          {
-            name: 'snet-apim-private-endpoint'
-            properties: {
-              addressPrefix: apimPrivateEndpointSubnetPrefix
-              privateEndpointNetworkPolicies: 'Disabled'
             }
-          }
-        ]
-    )
+          ]
+        }
+      }
+      {
+        name: privateEndpointSubnetName
+        properties: {
+          addressPrefix: apimPrivateEndpointSubnetPrefix
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
   }
 }
 
@@ -309,6 +321,21 @@ resource apim 'Microsoft.ApiManagement/service@2025-09-01-preview' = {
   properties: {
     publisherEmail: apimPublisherEmail
     publisherName: apimPublisherName
+    customProperties: {
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Protocols.Server.Http2': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Ssl30': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls10': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls11': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TripleDes168': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Ssl30': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10': 'False'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11': 'False'
+    }
+    developerPortalStatus: 'Disabled'
+    legacyPortalStatus: 'Disabled'
+    ...(!usePremiumV2Injection ? {
+      natGatewayState: 'Enabled'
+    } : {})
     publicNetworkAccess: 'Enabled'
     virtualNetworkType: usePremiumV2Injection ? 'Internal' : 'External'
     virtualNetworkConfiguration: {
@@ -323,7 +350,7 @@ resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = i
   tags: tags
   properties: {
     subnet: {
-      id: '${vnet.id}/subnets/snet-apim-private-endpoint'
+      id: '${vnet.id}/subnets/${privateEndpointSubnetName}'
     }
     privateLinkServiceConnections: [
       {
@@ -402,6 +429,101 @@ resource apimGatewayARecord 'Microsoft.Network/privateDnsZones/A@2020-06-01' = i
   }
 }
 
+module mappingStorage 'mapping-storage.bicep' = {
+  name: 'mapping-storage-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    apimName: apim.name
+    vnetName: vnet.name
+    privateEndpointSubnetName: privateEndpointSubnetName
+  }
+}
+
+module apimObservability 'apim-observability.bicep' = {
+  name: 'apim-observability-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    apimName: apim.name
+    vnetName: vnet.name
+    privateEndpointSubnetName: privateEndpointSubnetName
+    blobPrivateDnsZoneName: mappingStorage.outputs.blobPrivateDnsZoneName
+    logRetentionDays: apimLogRetentionDays
+    telemetrySamplingPercentage: apimTelemetrySamplingPercentage
+  }
+}
+
+module observabilityWorkbook 'observability-workbook.bicep' = {
+  name: 'observability-workbook-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    workspaceResourceId: resourceId(
+      'Microsoft.OperationalInsights/workspaces',
+      apimObservability.outputs.logAnalyticsWorkspaceName
+    )
+    appInsightsResourceId: resourceId(
+      'Microsoft.Insights/components',
+      apimObservability.outputs.applicationInsightsName
+    )
+    apimResourceId: apim.id
+  }
+}
+
+module aiGatewayUsageWorkbook 'ai-gateway-usage-workbook.bicep' = {
+  name: 'ai-gateway-usage-workbook-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    workspaceResourceId: resourceId(
+      'Microsoft.OperationalInsights/workspaces',
+      apimObservability.outputs.logAnalyticsWorkspaceName
+    )
+    appInsightsResourceId: resourceId(
+      'Microsoft.Insights/components',
+      apimObservability.outputs.applicationInsightsName
+    )
+    apimResourceId: apim.id
+  }
+}
+
+module aiGatewayDimensionValuesWorkbook 'ai-gateway-dimension-values-workbook.bicep' = {
+  name: 'ai-gateway-dimension-values-workbook-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    workspaceResourceId: resourceId(
+      'Microsoft.OperationalInsights/workspaces',
+      apimObservability.outputs.logAnalyticsWorkspaceName
+    )
+    apimResourceId: apim.id
+  }
+}
+
+module apimLimitDebugWorkbook 'apim-limit-debug-workbook.bicep' = {
+  name: 'apim-limit-debug-workbook-${resourceToken}'
+  params: {
+    location: location
+    tags: tags
+    resourceToken: resourceToken
+    workspaceResourceId: resourceId(
+      'Microsoft.OperationalInsights/workspaces',
+      apimObservability.outputs.logAnalyticsWorkspaceName
+    )
+    appInsightsResourceId: resourceId(
+      'Microsoft.Insights/components',
+      apimObservability.outputs.applicationInsightsName
+    )
+    apimResourceId: apim.id
+  }
+}
+
 // ---- Front-end App Service (Linux) that serves the SPA and proxies /ai to APIM ----
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: 'plan-${resourceToken}'
@@ -438,20 +560,6 @@ resource appService 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       // Route all outbound traffic through the VNet so private DNS resolves the APIM host.
       vnetRouteAllEnabled: true
-      appSettings: [
-        {
-          // APIM gateway origin only; the SPA builds the /openai/... operation path and
-          // calls it same-origin under /ai, which the Node proxy forwards to this origin.
-          // Constructed (not apim.properties.gatewayUrl, which is empty in Internal mode)
-          // so it always matches the azure-api.net private DNS A record above.
-          name: 'APIM_ORIGIN'
-          value: 'https://${apim.name}.azure-api.net'
-        }
-        {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'false'
-        }
-      ]
     }
   }
   dependsOn: [
@@ -461,13 +569,45 @@ resource appService 'Microsoft.Web/sites@2024-04-01' = {
   ]
 }
 
+// Preserve settings managed outside this template, including the APIM subscription key.
+module appServiceSettings 'app-service-settings.bicep' = {
+  name: 'app-service-settings-${resourceToken}'
+  params: {
+    appServiceName: appService.name
+    // Constructed instead of using gatewayUrl, which is empty in Premium v2 Internal mode.
+    apimOrigin: 'https://${apim.name}.azure-api.net'
+    currentAppSettings: list('${appService.id}/config/appsettings', '2024-04-01').properties
+  }
+}
+
 output vpnGatewayPublicIp string = vpnGatewayPip.properties.ipAddress
 output vnetAddressSpace string = vnetAddressPrefix
 output vpnConnectionName string = connection.name
 output apimName string = apim.name
 output apimGatewayUrl string = 'https://${apim.name}.azure-api.net'
-output apimPrivateIp string = usePremiumV2Injection ? apimPrivateIp : apimPrivateEndpoint!.properties.customDnsConfigs[0].ipAddresses[0]
+output apimPrivateIp string = usePremiumV2Injection
+  ? apimPrivateIp
+  : (!empty(apimPrivateEndpoint!.properties.customDnsConfigs)
+      ? apimPrivateEndpoint!.properties.customDnsConfigs[0].ipAddresses[0]
+      : '')
 output apimPrivateDnsZoneName string = apimDnsZoneName
+output mappingStorageAccountName string = mappingStorage.outputs.storageAccountName
+output mappingContainerName string = mappingStorage.outputs.containerName
+output mappingBlobName string = mappingStorage.outputs.blobName
+output mappingBlobUrl string = mappingStorage.outputs.blobUrl
+output mappingStoragePrivateIp string = mappingStorage.outputs.storagePrivateIp
+output logAnalyticsWorkspaceName string = apimObservability.outputs.logAnalyticsWorkspaceName
+output applicationInsightsName string = apimObservability.outputs.applicationInsightsName
+output monitorPrivateLinkScopeName string = apimObservability.outputs.monitorPrivateLinkScopeName
+output monitorPrivateEndpointIp string = apimObservability.outputs.monitorPrivateEndpointIp
+output observabilityWorkbookId string = observabilityWorkbook.outputs.workbookId
+output observabilityWorkbookName string = observabilityWorkbook.outputs.workbookName
+output aiGatewayUsageWorkbookId string = aiGatewayUsageWorkbook.outputs.workbookId
+output aiGatewayUsageWorkbookName string = aiGatewayUsageWorkbook.outputs.workbookName
+output aiGatewayDimensionValuesWorkbookId string = aiGatewayDimensionValuesWorkbook.outputs.workbookId
+output aiGatewayDimensionValuesWorkbookName string = aiGatewayDimensionValuesWorkbook.outputs.workbookName
+output apimLimitDebugWorkbookId string = apimLimitDebugWorkbook.outputs.workbookId
+output apimLimitDebugWorkbookName string = apimLimitDebugWorkbook.outputs.workbookName
 output appServiceName string = appService.name
 output appServiceDefaultHostName string = 'https://${appService.properties.defaultHostName}'
 output appServiceLocation string = appServiceLocation

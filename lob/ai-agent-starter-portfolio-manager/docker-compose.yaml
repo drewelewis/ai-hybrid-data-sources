@@ -1,0 +1,97 @@
+services:
+
+  # AI Agent Starter - FastAPI server with Microsoft Agent Framework
+  ai-agent-starter-api:
+    image: drewl/ai-agent-starter-portfolio-manager:latest
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: ai-agent-starter-portfolio-manager-api
+    ports:
+      - "8989:8989"
+    extra_hosts:
+      - "apim-c4fhgayvfr3b2.azure-api.net:10.100.2.4"
+    depends_on:
+      ai-agent-starter-portfolio-manager-postgres:
+        condition: service_healthy
+    environment:
+      # Azure Configuration (use .env file or pass these in)
+      - MODEL_ENDPOINT_MODE=${MODEL_ENDPOINT_MODE:-direct}
+      - AZURE_OPENAI_API_ENDPOINT=${AZURE_OPENAI_API_ENDPOINT:-}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-02-01}
+      - AZURE_OPENAI_TOKEN_SCOPE=${AZURE_OPENAI_TOKEN_SCOPE:-}
+      - APIM_OPENAI_ENDPOINT=${APIM_OPENAI_ENDPOINT:-}
+      - APIM_TOKEN_SCOPE=${APIM_TOKEN_SCOPE:-}
+      - APIM_SUBSCRIPTION_KEY=${APIM_SUBSCRIPTION_KEY:-}
+      - MODEL_DEPLOYMENT_NAME=${MODEL_DEPLOYMENT_NAME}
+      - AZURE_AUTH_MODE=${AZURE_AUTH_MODE:-default}
+
+      # Local PostgreSQL service
+      - POSTGRES_HOST=ai-agent-starter-portfolio-manager-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_SSL_MODE=disable
+
+      # Server Configuration
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8989
+      - SERVICE_NAME=ai-agent-starter-portfolio-manager
+      - SERVICE_VERSION=1.0.0
+
+      # Microsoft Agent 365 metadata-only observability
+      - ENABLE_A365_OBSERVABILITY=${ENABLE_A365_OBSERVABILITY:-false}
+      - A365_TENANT_ID=${A365_TENANT_ID:-}
+      - A365_BLUEPRINT_CLIENT_ID=${A365_BLUEPRINT_CLIENT_ID:-}
+      - A365_AGENT_ID=${A365_AGENT_ID:-}
+      - A365_RECORD_CONTENT=false
+      - A365_CHANNEL_NAME=${A365_CHANNEL_NAME:-local-cli}
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (for future use)
+  ai-agent-starter-portfolio-manager-postgres:
+    image: postgres:17.5
+    container_name: ai-agent-starter-portfolio-manager-postgres
+    ports:
+      - "5000:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Adminer Database Management UI
+  ai-agent-starter-portfolio-manager-adminer:
+    image: adminer
+    container_name: ai-agent-starter-portfolio-manager-adminer
+    restart: always
+    depends_on:
+      ai-agent-starter-portfolio-manager-postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: ai-agent-starter-portfolio-manager-postgres
+    ports:
+      - 8888:8080
+
+
+
+
+volumes:
+  postgres_data:

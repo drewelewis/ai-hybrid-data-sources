@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1850" height="1280" viewBox="0 0 1850 1280" role="img" aria-labelledby="title description">
+  <title id="title">AI chat request and response sequence</title>
+  <desc id="description">End-to-end sequence from an end-user prompt through the React client, App Service proxy, APIM policy, mapping configuration, managed identity, Azure OpenAI backend, and the complete response path.</desc>
+  <defs>
+    <style>
+      .title { font: 700 28px "Segoe UI", Arial, sans-serif; fill: #242424; }
+      .subtitle { font: 15px "Segoe UI", Arial, sans-serif; fill: #616161; }
+      .participant { font: 700 13px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .participant-small { font: 700 12px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .heading { font: 700 12px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .body { font: 12px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .small { font: 11px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .tiny { font: 10px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .message { font: 11px "Segoe UI", Arial, sans-serif; fill: #323130; }
+      .lifeline { stroke: #a19f9d; stroke-width: 1.5; stroke-dasharray: 7 6; }
+      .purple { stroke: #5c2d91; fill: none; stroke-width: 2; marker-end: url(#arrow-purple); }
+      .green { stroke: #107c10; fill: none; stroke-width: 2; marker-end: url(#arrow-green); }
+      .blue { stroke: #0078d4; fill: none; stroke-width: 2; marker-end: url(#arrow-blue); }
+      .orange { stroke: #d83b01; fill: none; stroke-width: 2; marker-end: url(#arrow-orange); }
+      .gray { stroke: #605e5c; fill: none; stroke-width: 2; marker-end: url(#arrow-gray); }
+      .return-purple { stroke: #5c2d91; fill: none; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow-purple); }
+      .return-green { stroke: #107c10; fill: none; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow-green); }
+      .return-blue { stroke: #0078d4; fill: none; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow-blue); }
+      .return-orange { stroke: #d83b01; fill: none; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow-orange); }
+      .return-gray { stroke: #605e5c; fill: none; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow-gray); }
+    </style>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#5c2d91"/></marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#107c10"/></marker>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#0078d4"/></marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#d83b01"/></marker>
+    <marker id="arrow-gray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#605e5c"/></marker>
+  </defs>
+
+  <rect width="1850" height="1280" fill="#ffffff"/>
+  <text x="45" y="52" class="title">AI chat request and response sequence</text>
+  <text x="47" y="83" class="subtitle">Example: gpt-4o-2024-08-06 through the llm-suite-oai-ptu-small-v2 product mapping</text>
+  <rect x="45" y="100" width="1760" height="48" fill="#f3f9fd" stroke="#0078d4"/>
+  <text x="70" y="129" class="heading">The App Service proxy keeps the APIM subscription key server-side. APIM resolves the single LOB product, selects the model mapping and backendID, then authenticates to Azure OpenAI with managed identity.</text>
+
+  <!-- Participants -->
+  <rect x="45" y="175" width="170" height="58" rx="8" fill="#ffffff" stroke="#5c2d91" stroke-width="2"/>
+  <text x="130" y="209" text-anchor="middle" class="participant">End user</text>
+  <rect x="275" y="175" width="200" height="58" rx="8" fill="#ffffff" stroke="#5c2d91" stroke-width="2"/>
+  <text x="375" y="209" text-anchor="middle" class="participant">React AI chat client</text>
+  <rect x="545" y="175" width="200" height="58" rx="8" fill="#e6f4ea" stroke="#107c10" stroke-width="2"/>
+  <text x="645" y="209" text-anchor="middle" class="participant">App Service proxy</text>
+  <rect x="815" y="175" width="220" height="58" rx="8" fill="#deecf9" stroke="#0078d4" stroke-width="2"/>
+  <text x="925" y="209" text-anchor="middle" class="participant">APIM gateway and policy</text>
+  <rect x="1105" y="175" width="220" height="58" rx="8" fill="#fff4ce" stroke="#d83b01" stroke-width="2"/>
+  <text x="1215" y="199" text-anchor="middle" class="participant-small">Mapping cache and</text>
+  <text x="1215" y="218" text-anchor="middle" class="participant-small">private blob</text>
+  <rect x="1395" y="175" width="180" height="58" rx="8" fill="#f3f2f1" stroke="#8a8886" stroke-width="2"/>
+  <text x="1485" y="209" text-anchor="middle" class="participant">Microsoft Entra ID</text>
+  <rect x="1645" y="175" width="175" height="58" rx="8" fill="#e8f4fd" stroke="#0078d4" stroke-width="2"/>
+  <text x="1732.5" y="198" text-anchor="middle" class="participant-small">Azure OpenAI backend</text>
+  <text x="1732.5" y="218" text-anchor="middle" class="small">gpt-4o-2024-08-06</text>
+
+  <!-- Lifelines -->
+  <line x1="130" y1="233" x2="130" y2="1055" class="lifeline"/>
+  <line x1="375" y1="233" x2="375" y2="1055" class="lifeline"/>
+  <line x1="645" y1="233" x2="645" y2="1055" class="lifeline"/>
+  <line x1="925" y1="233" x2="925" y2="1055" class="lifeline"/>
+  <line x1="1215" y1="233" x2="1215" y2="1055" class="lifeline"/>
+  <line x1="1485" y1="233" x2="1485" y2="1055" class="lifeline"/>
+  <line x1="1732" y1="233" x2="1732" y2="1055" class="lifeline"/>
+
+  <!-- Request sequence -->
+  <line x1="130" y1="275" x2="375" y2="275" class="purple"/>
+  <text x="252" y="264" text-anchor="middle" class="message">1  Enter prompt</text>
+  <line x1="375" y1="325" x2="645" y2="325" class="purple"/>
+  <text x="510" y="314" text-anchor="middle" class="message">2  Submit chat request with model name and messages</text>
+
+  <rect x="535" y="355" width="220" height="76" rx="8" fill="#e6f4ea" stroke="#107c10"/>
+  <text x="645" y="377" text-anchor="middle" class="heading">Build upstream request</text>
+  <text x="645" y="398" text-anchor="middle" class="small">Add APIM subscription key</text>
+  <text x="645" y="417" text-anchor="middle" class="tiny">Key never enters browser JavaScript</text>
+
+  <line x1="645" y1="445" x2="925" y2="445" class="green"/>
+  <text x="785" y="434" text-anchor="middle" class="message">3  HTTPS request with subscription key</text>
+
+  <rect x="805" y="465" width="240" height="66" rx="8" fill="#deecf9" stroke="#0078d4"/>
+  <text x="925" y="489" text-anchor="middle" class="heading">Validate subscription key</text>
+  <text x="925" y="512" text-anchor="middle" class="small">Resolve one subscription and product</text>
+
+  <line x1="925" y1="555" x2="1215" y2="555" class="orange"/>
+  <text x="1070" y="544" text-anchor="middle" class="message">4  Read cache; fetch private blob on cache miss</text>
+  <line x1="1215" y1="595" x2="925" y2="595" class="return-orange"/>
+  <text x="1070" y="584" text-anchor="middle" class="message">5  Mapping JSON</text>
+
+  <rect x="785" y="620" width="280" height="100" rx="8" fill="#deecf9" stroke="#0078d4"/>
+  <text x="805" y="644" class="heading">Select routing configuration</text>
+  <text x="805" y="665" class="small">Product: openai-llm-suite-oai-ptu-small-v2</text>
+  <text x="805" y="685" class="small">Model: gpt-4o-2024-08-06</text>
+  <text x="805" y="705" class="small">Limits + backend: v2-prod-backendpool-suite-exp</text>
+
+  <line x1="925" y1="745" x2="1485" y2="745" class="gray"/>
+  <text x="1205" y="734" text-anchor="middle" class="message">6  Request Cognitive Services token using APIM managed identity</text>
+  <line x1="1485" y1="770" x2="925" y2="770" class="return-gray"/>
+  <text x="1205" y="759" text-anchor="middle" class="message">7  Access token</text>
+
+  <rect x="805" y="785" width="240" height="76" rx="8" fill="#deecf9" stroke="#0078d4"/>
+  <text x="925" y="807" text-anchor="middle" class="heading">Prepare backend request</text>
+  <text x="925" y="828" text-anchor="middle" class="small">Remove caller api-key</text>
+  <text x="925" y="847" text-anchor="middle" class="small">Set bearer token, URI, and backendID</text>
+
+  <rect x="1360" y="820" width="250" height="58" rx="8" fill="#fff4ce" stroke="#d83b01"/>
+  <text x="1485" y="842" text-anchor="middle" class="tiny">On 408, 429, 500, 502, or 503</text>
+  <text x="1485" y="862" text-anchor="middle" class="tiny">retry up to 3 times at 3-second intervals</text>
+
+  <line x1="925" y1="890" x2="1732" y2="890" class="blue"/>
+  <text x="1328" y="879" text-anchor="middle" class="message">8  Forward chat request to selected backend and deployment</text>
+  <line x1="1732" y1="905" x2="925" y2="905" class="return-blue"/>
+  <text x="1328" y="925" text-anchor="middle" class="message">9  Completion response and token usage</text>
+
+  <!-- Response sequence -->
+  <rect x="805" y="935" width="240" height="70" rx="8" fill="#deecf9" stroke="#0078d4"/>
+  <text x="925" y="957" text-anchor="middle" class="heading">Apply outbound policy</text>
+  <text x="925" y="978" text-anchor="middle" class="small">Add limit and diagnostic headers</text>
+  <text x="925" y="997" text-anchor="middle" class="small">Emit token metrics</text>
+
+  <line x1="925" y1="1015" x2="645" y2="1015" class="return-green"/>
+  <text x="785" y="1004" text-anchor="middle" class="message">10  Assistant content and APIM headers</text>
+  <line x1="645" y1="1035" x2="375" y2="1035" class="return-purple"/>
+  <text x="510" y="1024" text-anchor="middle" class="message">11  Return response</text>
+  <line x1="375" y1="1055" x2="130" y2="1055" class="return-purple"/>
+  <text x="252" y="1044" text-anchor="middle" class="message">12  Render assistant message</text>
+
+  <!-- Alternate model routing -->
+  <text x="50" y="1100" class="heading">Same sequence, different model-to-backend selection</text>
+  <rect x="50" y="1115" width="390" height="64" rx="8" fill="#e8f4fd" stroke="#0078d4"/>
+  <text x="245" y="1140" text-anchor="middle" class="heading">gpt-35-turbo-0125</text>
+  <text x="245" y="1162" text-anchor="middle" class="small">v2-prod-backendpool-suite-exp</text>
+  <rect x="480" y="1115" width="570" height="64" rx="8" fill="#fff4ce" stroke="#d83b01"/>
+  <text x="765" y="1140" text-anchor="middle" class="heading">text-embedding-3-large-1</text>
+  <text x="765" y="1162" text-anchor="middle" class="small">text-embedding-3-large-1-backendpool-suite-exp</text>
+  <rect x="1090" y="1115" width="460" height="64" rx="8" fill="#fff4ce" stroke="#d83b01"/>
+  <text x="1320" y="1140" text-anchor="middle" class="heading">gpt-4-0613</text>
+  <text x="1320" y="1162" text-anchor="middle" class="small">gpt-4-0613-backendpool-suite-exp</text>
+
+  <rect x="50" y="1200" width="1760" height="42" fill="#f7f7f7" stroke="#8a8886"/>
+  <text x="75" y="1226" class="small">Policy exits early instead of calling the backend when the subscription is invalid, the model is absent from the product mapping, or a configured limit is exceeded.</text>
+</svg>

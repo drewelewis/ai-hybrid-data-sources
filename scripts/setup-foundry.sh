@@ -22,6 +22,23 @@ configuredFoundryModel=$(get_azd_optional_value FOUNDRY_MODEL)
 configuredFoundryModelVersion=$(get_azd_optional_value FOUNDRY_MODEL_VERSION)
 apimIp=$(get_azd_optional_value APIM_PRIVATE_IP)
 apimPrivateDnsZone=$(get_azd_optional_value APIM_PRIVATE_DNS_ZONE)
+if [ -z "$apimIp" ]; then
+  apimPrivateEndpointName="pep-$apimName"
+  apimNetworkInterfaceId=$(az network private-endpoint show \
+    --subscription "$subscriptionId" \
+    --resource-group "$hubRg" \
+    --name "$apimPrivateEndpointName" \
+    --query 'networkInterfaces[0].id' \
+    --output tsv \
+    --only-show-errors)
+  if [ -n "$apimNetworkInterfaceId" ]; then
+    apimIp=$(az network nic show \
+      --ids "$apimNetworkInterfaceId" \
+      --query 'ipConfigurations[0].privateIPAddress' \
+      --output tsv \
+      --only-show-errors)
+  fi
+fi
 if [ -z "$apimIp" ] || [ -z "$apimPrivateDnsZone" ]; then
   echo "APIM_PRIVATE_IP and APIM_PRIVATE_DNS_ZONE outputs are required. Run azd provision before Foundry setup." >&2
   exit 1
@@ -71,6 +88,7 @@ modelVer=${FOUNDRY_MODEL_VERSION:-${configuredFoundryModelVersion:-2026-03-17}}
 # registrations provisioned by the main Bicep deployment.
 provisionedTenantId=$(azd env get-value ENTRA_TENANT_ID 2>/dev/null || true)
 provisionedAudience=$(azd env get-value ENTRA_API_AUDIENCE 2>/dev/null || true)
+mappingBlobUrl=$(azd env get-value MAPPING_BLOB_URL 2>/dev/null || true)
 entraTenantId=${ENTRA_TENANT_ID:-$provisionedTenantId}
 jwtAudience=${JWT_AUDIENCE:-$provisionedAudience}
 corsOrigins=${CORS_ORIGINS:-'["http://localhost:5173"]'}
@@ -110,6 +128,7 @@ az deployment sub create --name "peering-$envName-$region" --subscription "$subs
                wireFoundryBackend=true foundryResourceGroup="$spokeRg" foundryAccountName="$foundryAcct" \
                foundryEndpoint="$foundryEndpoint" foundryDeploymentName="$foundryDeployment" \
                entraTenantId="$entraTenantId" jwtAudience="$jwtAudience" allowedCorsOrigins="$corsOrigins" \
+               mappingBlobUrl="$mappingBlobUrl" \
   --only-show-errors || { echo "Peering/DNS deployment failed. See errors above."; exit 1; }
 
 echo ""

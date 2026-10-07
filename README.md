@@ -17,6 +17,11 @@ It solves two problems at once, without exposing any private system to the publi
 >   - `premiumV2Injection` (default): **Premium v2** VNet-injected in `Internal` mode.
 >   - `standardV2PrivateLink`: **Standard v2** with inbound Private Link, outbound VNet
 >     integration, and public gateway access disabled after the private endpoint is ready.
+> - **Hub policy configuration:** a dedicated Standard LRS storage account in the APIM
+>   resource group, with a private blob endpoint and container-scoped APIM read access.
+> - **Hub observability:** workspace-based Application Insights and Log Analytics with
+>   private ingestion through Azure Monitor Private Link, APIM managed-identity logging,
+>   W3C tracing, gateway logs, and privacy-safe LLM token metrics.
 > - **Canada East spoke:** a globally peered VNet with an empty Linux App Service. Its
 >   application is maintained and deployed from a separate repository.
 > - **Selected Foundry region:** the globally peered, network-isolated Azure AI Foundry
@@ -78,7 +83,7 @@ an AI Gateway for outbound model calls and a private ingress path to on-prem dat
 
 | Platform | Option | Mechanism | Private-only data path | Access style | Deployed by this repo |
 | --- | --- | --- | --- | --- | --- |
-| **Foundry** | **A** | VNet + VPN/ExpressRoute; selectable APIM Premium v2 injection or Standard v2 Private Link | ✅ Yes | Raw private-IP / native protocol; governed APIs through APIM | ✅ Yes |
+| **Foundry** | **A** | VNet + VPN/ExpressRoute; selectable APIM Premium v2 injection or Standard v2 Private Link; private APIM observability | ✅ Yes | Raw private-IP / native protocol; governed APIs through APIM | ✅ Yes |
 | **Foundry** | B | APIM self-hosted gateway (dial-out) | ❌ TLS over public internet | Governed APIs | — |
 | **Copilot Studio** | **A** | Power Platform VNet integration → VPN/ExpressRoute | ✅ Yes | Connector over private path | Reuses the tunnel |
 | **Copilot Studio** | B | On-premises data gateway + connectors | ❌ Dial-out via Microsoft cloud | Connectors / APIs | — |
@@ -414,8 +419,9 @@ flowchart LR
 Monthly estimates use **East US retail (USD)**, **730 hours/month**, pay-as-you-go rates.
 The table compares the connectivity footprints only. It **excludes** the Canada East App
 Service plan, Foundry spoke resources (Cosmos DB, AI Search, ACR, monitoring, storage),
-global VNet-peering transfer, other data transfer, and Azure AI Foundry token consumption.
-Those costs are workload- and region-dependent. Indicative as of 2026-09 — confirm with the
+Log Analytics/Application Insights ingestion and retention, global VNet-peering transfer,
+other data transfer, and Azure AI Foundry token consumption. Those costs are workload- and
+region-dependent. Indicative as of 2026-09 — confirm with the
 [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/).
 
 ### Fixed component rates
@@ -429,6 +435,8 @@ Those costs are workload- and region-dependent. Indicative as of 2026-09 — con
 | VPN Gateway | VpnGw1AZ | $0.21 | ~$153 |
 | VPN Gateway | VpnGw2AZ | $0.54 | ~$394 |
 | S2S tunnel connection | any VpnGw | $0.015 | ~$11 |
+| Private endpoint | Mapping configuration blob | $0.01 | ~$7 |
+| Private endpoint | Azure Monitor Private Link Scope | $0.01 | ~$7 |
 
 ### Total by ingress footprint
 
@@ -444,11 +452,17 @@ out — and **Copilot Option C** is APIM-only.
 | APIM tier | Standard v2 (~$700) | Standard v2 (~$700) | Premium v2, 1 unit (~$1,400) |
 | Gateway / connectivity | 1 self-hosted gateway (~$250) | VpnGw1AZ + 1 tunnel (~$164) | VpnGw1AZ + 1 tunnel (~$164) |
 | On-prem hardware | Existing servers ($0 Azure) | None | None |
-| **Azure fixed subtotal** | **~$950 / month** | **~$865 / month** | **~$1,565 / month** |
+| **Azure fixed subtotal** | **~$950 / month** | **~$879 / month** | **~$1,579 / month** |
 | AI usage | Token-based (same) | Token-based (same) | Token-based (same) |
 
 - **Egress adds no fixed networking cost** — it reuses the same APIM instance; you pay only
   for model tokens.
+- The private mapping account adds minimal Standard LRS capacity and transaction charges
+  beyond the private endpoint shown above; one small JSON blob is typically negligible.
+- APIM observability adds one Log Analytics workspace, workspace-based Application
+  Insights, and Azure Monitor Private Link Scope. Ingestion and retention are consumption
+  charges; the default 30-day retention and zero-byte body capture constrain cost and avoid
+  storing prompts or model responses.
 - **Dev/test self-hosted footprint ≈ ~$300/month** using the APIM Developer tier (~$48) plus
   one self-hosted gateway (~$250) — note Developer has no SLA.
 - **ExpressRoute** (a VNet+VPN alternative to S2S VPN) is priced separately: a metered
@@ -548,7 +562,12 @@ not switch the other.
 
 After profile and placement selection, `azd up` prompts for the **IPsec pre-shared key** and
 an **APIM publisher email**, then provisions **Foundry Option A** with the selected APIM
-networking profile. Premium v2 injection remains the default. For Standard v2, the
+networking profile. The hub resource group also receives a dedicated private storage
+account and `config` container for APIM policy mappings. APIM's managed identity receives
+`Storage Blob Data Reader` on that container only. The same hub receives Log Analytics,
+workspace-based Application Insights, and an Azure Monitor Private Link Scope. APIM uses
+its managed identity to emit telemetry privately; request and response bodies are not
+captured. Premium v2 injection remains the default. For Standard v2, the
 `postprovision` hook verifies that the private endpoint is approved, then disables and
 verifies public gateway access; a failure stops `azd up` explicitly rather than reporting a
 private deployment while public access may remain enabled. APIM applies that update
@@ -576,6 +595,79 @@ subscription selected for the `azd` environment with `az account show` and stops
 creating resources if they differ. Select the same subscription at the `azd up` prompt;
 the post-provision Foundry and peering scripts then pass that subscription explicitly to
 every Azure CLI command.
+
+### Publish the APIM model mapping
+
+The mapping storage account has public network access disabled. Publish only after the S2S
+VPN is established, from a host on the on-premises LAN that can route to the hub:
+
+```powershell
+.\scripts\publish-llm-mapping.ps1
+```
+
+```bash
+./scripts/publish-llm-mapping.sh
+```
+
+Both scripts default to `untracked/new_v2-mapping.json`; pass a path as the first argument
+or set `LLM_MAPPING_FILE` to use another file. The publisher validates the JSON, grants the
+signed-in Azure CLI principal `Storage Blob Data Contributor` on the `config` container
+when needed, sends the blob directly to its private endpoint, downloads it again, and
+compares SHA-256 hashes. The principal running it therefore needs permission to create that
+container-scoped role assignment. The mapping remains private, shared-key access and
+anonymous blob access remain disabled, and APIM reads it with managed identity.
+
+`azd env get-values` exposes `MAPPING_BLOB_URL` for the policy `<set-url>`, plus
+`MAPPING_STORAGE_ACCOUNT`, `MAPPING_CONTAINER`, `MAPPING_BLOB_NAME`, and
+`MAPPING_STORAGE_PRIVATE_IP` for publishing and diagnostics. The policy prefixes each root
+key with `openai-`; root key `ai-hybrid-data-sources-lob-oai-small-v2` therefore applies to
+the `openai-ai-hybrid-data-sources-lob-oai-small-v2` APIM product. The Foundry peering module
+creates that product, associates the API, requires a product subscription, and installs the
+mapping policy. Clients select a mapped deployment in the API route and provide the
+product's subscription key.
+
+Azure can omit `customDnsConfigs` when an existing private endpoint is redeployed. In that
+case the private-IP output is empty rather than failing the deployment, and the mapping
+publisher resolves the address from the endpoint's generated network interface.
+
+### Observe APIM traffic
+
+See [Observability architecture and setup](observability.md) for the deployed resource,
+networking, security, and collection design. See the
+[Observability user guide](observability_user_guide.md) for portal workflows, investigation
+decision guidance, KQL queries, workbooks, alerts, and troubleshooting.
+The deployment includes shared **APIM Observability**, **AI Gateway Usage Dimensions**, and
+**AI Gateway Dimension Values** Azure Monitor Workbooks so operators can use overall,
+governed-usage, and per-request views of routing dimensions plus emitted RPM, model-TPM,
+and SKU-TPM values without manually building dashboards.
+
+The baseline sends two complementary telemetry streams to the hub Log Analytics workspace:
+
+- `ApiManagementGatewayLogs` contains unsampled gateway routing, status, subscription,
+  backend, and latency records.
+- Application Insights `AppRequests` and `AppDependencies` provide sampled W3C-correlated
+  request and backend spans. Errors are always captured.
+
+The APIM policy emits native `AI-Gateway` LLM token metrics with bounded Product ID,
+Subscription ID, Backend ID, and Deployment dimensions. Streaming Chat Completions callers
+must send `stream_options.include_usage: true` so the final usage event is available for
+accurate token metrics.
+
+Both frontend and backend diagnostic body capture are fixed at zero bytes. Authorization
+headers, subscription keys, prompts, completions, mapping content, and managed-identity
+tokens are not logged. The `GatewayLlmLogs` category is deliberately disabled because its
+schema can include request and response messages. Public ingestion is disabled on
+Application Insights and Log Analytics. APIM sends Application Insights telemetry through
+the hub Azure Monitor private endpoint; Azure platform diagnostic settings deliver
+`GatewayLogs` to Log Analytics over the Azure-managed service channel. Query access remains
+public but requires Azure RBAC.
+
+`azd env get-values` exposes `LOG_ANALYTICS_WORKSPACE`, `APPLICATION_INSIGHTS_NAME`,
+`MONITOR_PRIVATE_LINK_SCOPE`, and `MONITOR_PRIVATE_ENDPOINT_IP` for validation and
+operations. The IP output is the first AMPLS address; the private DNS records are
+authoritative because one Azure Monitor private endpoint allocates multiple addresses. In
+the validated `/27` hub subnet, AMPLS currently occupies `10.100.2.6` through
+`10.100.2.18`, in addition to the APIM and mapping endpoints at `.4` and `.5`.
 
 Because both APIM profiles and the VPN are always-on resources, tear the environment down
 when you're not actively testing and re-run `azd up` when you need it:
@@ -609,7 +701,9 @@ is compiled with `npm run build`, and App Service launches the deployed Express 
 > VpnGw1AZ gateway, local gateway, and IPsec connection, **plus** the selected APIM
 > networking profile. The default is **Premium v2** VNet-injected in `Internal` mode; the
 > alternative is **Standard v2** with inbound Private Link and outbound VNet integration.
-> APIM is the single control plane both platforms reuse.
+> The hub also contains a private mapping-configuration storage account and private Azure
+> Monitor ingestion for APIM gateway logs, W3C traces, and LLM token metrics. APIM is the
+> single control plane both platforms reuse.
 > It also creates an empty App Service in a globally peered Canada East spoke; application
 > code is deployed from its own repository. Copilot Option A rides the same tunnel. On-prem
 > strongSwan config lives under `onprem/`

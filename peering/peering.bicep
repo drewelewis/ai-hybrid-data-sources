@@ -57,6 +57,18 @@ param jwtAudience string = ''
 @description('Browser origins allowed to call the Foundry API (SPA dev/prod origins).')
 param allowedCorsOrigins array = [ 'http://localhost:5173' ]
 
+@description('Private blob URL containing the APIM product-to-model mapping. Required when wireFoundryBackend=true.')
+param mappingBlobUrl string = ''
+
+@description('Enables temporary APIM branch traces for one approved subscription.')
+param debugTracingEnabled bool = false
+
+@description('APIM subscription ID allowed to emit temporary branch traces.')
+param debugTracingSubscriptionId string = ''
+
+@description('UTC expiry for temporary branch tracing.')
+param debugTracingExpiryUtc string = '1970-01-01T00:00:00Z'
+
 var hubVnetId = resourceId(subscription().subscriptionId, hubResourceGroup, 'Microsoft.Network/virtualNetworks', hubVnetName)
 var spokeVnetId = resourceId(subscription().subscriptionId, spokeResourceGroup, 'Microsoft.Network/virtualNetworks', spokeVnetName)
 
@@ -116,6 +128,10 @@ module apimFoundryApi 'modules/apim-foundry-api.bicep' = if (wireFoundryBackend)
     entraTenantId: entraTenantId
     jwtAudience: jwtAudience
     allowedCorsOrigins: allowedCorsOrigins
+    mappingBlobUrl: mappingBlobUrl
+    debugTracingEnabled: debugTracingEnabled
+    debugTracingSubscriptionId: debugTracingSubscriptionId
+    debugTracingExpiryUtc: debugTracingExpiryUtc
   }
 }
 

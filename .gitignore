@@ -14,3 +14,7 @@ peering/peering.json
 
 # Local scratch notes
 untracked_notes.md
+/untracked/
+
+# Agent 365 generated configuration and credentials
+**/a365.generated.config.json
