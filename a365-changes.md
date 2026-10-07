@@ -880,7 +880,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-07 18:26 EDT - Publish repository work to GitHub
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Persist the accumulated infrastructure, APIM observability,
@@ -889,11 +889,18 @@ connection strings, or sensitive portfolio content.
   source, tests, documentation, diagrams, and audit history on `main`, and push
   it to `origin/main`. Exclude ignored credentials, compiled Bicep JSON,
   captured runtime output, and an obsolete duplicate APIM policy copy.
-- **Result:** Pending.
-- **Validation:** Pending Bicep compilation, focused PowerShell/Node checks,
-  Python tests, staged secret review, commit creation, and remote push
-  verification.
+- **Result:** Published commit `8ec5092` (`Add APIM observability and Agent 365
+  integration`) to `origin/main`. The commit contains 96 changed files and
+  includes the required Copilot co-author trailer. The real `.env`, `.azure`,
+  compiled `infra/mapping-storage.json`, captured MCP output, and obsolete
+  duplicate APIM policy copy were not committed.
+- **Validation:** `infra/main.bicep` and `peering/peering.bicep` compiled
+  successfully. Five focused APIM PowerShell/Node validation routines passed.
+  The focused Python suite passed all 30 tests. Staged whitespace and
+  high-confidence secret-pattern checks passed. `git fetch` showed no
+  pre-push divergence, and GitHub accepted `main` advancing from `65b6dc1` to
+  `8ec5092`.
 - **Rollback:** Revert the published commit with a new commit if necessary; do
   not rewrite shared branch history.
-- **Follow-up:** Complete validation, commit, push, and update this entry with
-  the resulting commit identifier.
+- **Follow-up:** Publish this audit-entry completion and verify local `main`
+  matches `origin/main`.
