@@ -498,6 +498,101 @@ connection strings, or sensitive portfolio content.
   the minimum specific scope through a separate approved change.
 - **Follow-up:** None.
 
+## 2026-10-12 13:23 EDT - Scrub organization name
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Replace organization-identifying names and links with the
+  approved codename `Contoso Bank`.
+- **Change:** Update current repository content and historical ledger wording
+  that identifies the organization, replace branded business-unit names with
+  generic equivalents, and remove identifying external corporate source
+  links. Git history will not be rewritten. No tenant, Azure, identity,
+  permission, license, or runtime object will be changed.
+- **Result:** Replaced organization-identifying names in the LOB documentation,
+  Agent 365 guidance, documentation index, and historical ledger wording with
+  `Contoso Bank`. Generalized branded commercial-bank and wealth-business
+  names and removed the identifying corporate report links. Git history was
+  not rewritten. No tenant, Azure, identity, permission, license, or runtime
+  object was changed.
+- **Validation:** A case-insensitive current-worktree content scan found no
+  occurrences of the removed organization names, branded affluent-service
+  name, or corporate domain. A recursive filename scan excluding `.git` found
+  no identifying paths. Confirmed `Contoso Bank` appears in the intended four
+  documentation and ledger files.
+- **Rollback:** Restore the affected documentation and ledger wording from the
+  prior revision. Re-adding identifying names requires explicit approval.
+- **Follow-up:** Rewrite Git history separately only if removal from prior
+  commits is required.
+
+## 2026-10-12 13:25 EDT - Publish LOB and Agent 365 reorganization
+
+- **Status:** Planned
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Commit and push the approved LOB structure, Agent 365
+  documentation relocation, Contoso Bank scrub, launchers, and moved
+  portfolio-manager project to GitHub.
+- **Change:** Stage only `A365/`, `lob/`, `a365-changes.md`, `startapi.bat`,
+  and `startchat.bat`; exclude unrelated infrastructure mapping and copied
+  APIM policy files; validate the staged change; commit to `main`; and push to
+  `origin/main`.
+- **Result:** Pending.
+- **Validation:** Confirm staged scope, run Git whitespace checks and a
+  credential-pattern scan, verify the commit, and confirm the remote push.
+- **Rollback:** Revert the published commit with a new revert commit; do not
+  rewrite shared branch history.
+- **Follow-up:** Pending.
+
+## 2026-10-12 10:05 EDT - Assess LOB-specific blueprint guidance
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Determine whether Agent 365 blueprint documentation should
+  account for Contoso Bank's five lines of business.
+- **Change:** Performed a read-only comparison of the current Agent Identity
+  blueprint boundary guidance, tenant governance model, and documented Contoso Bank
+  LOB structure. No repository content other than this audit entry and no
+  tenant, Azure, identity, permission, license, or runtime object was changed.
+- **Result:** LOB-specific blueprint profiles are useful for documenting
+  ownership, data classification, permissions, policy, sponsorship, and
+  incident routing. A blueprint should not be created merely because an LOB
+  exists; the actual boundary should remain the agent family plus its shared
+  credential, permission, publisher, regulatory, and blast-radius boundary.
+- **Validation:** Confirmed the current blueprint guide already requires
+  separate blueprints when business ownership, regulated data, inherited
+  permissions, credentials, or incident isolation differ, while allowing
+  instances with a common purpose and trust boundary to share a blueprint.
+- **Rollback:** Remove this audit entry; no operational rollback is required.
+- **Follow-up:** Optionally add an enterprise blueprint taxonomy and one
+  documented blueprint profile for each LOB without provisioning tenant
+  objects.
+
+## 2026-10-12 10:06 EDT - Add LOB blueprint guidance
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Document how Contoso Bank lines of business should influence Agent
+  Identity Blueprint boundaries and governance.
+- **Change:** Add `A365/lob_bluprints.md` with an enterprise taxonomy, boundary
+  rules, five LOB profiles, and a concrete Wealth portfolio-manager profile;
+  link it from `A365/readme.md`. No blueprint or other tenant object will be
+  created or modified.
+- **Result:** Added `A365/lob_bluprints.md` with the enterprise taxonomy,
+  blueprint boundary rules, a reusable profile schema, profiles for Services,
+  Markets, Banking, Wealth, and U.S. Personal Banking, and a current-state
+  Wealth portfolio-manager profile. Linked the guide from `A365/readme.md`.
+  No blueprint or other tenant object was created or modified.
+- **Validation:** Confirmed the document contains headings for all five LOBs
+  and the Wealth portfolio-manager profile, the Agent 365 documentation map
+  links to it, and all six local related-document targets exist.
+- **Rollback:** Delete `A365/lob_bluprints.md`, remove its index link, and
+  retain this ledger entry as history.
+- **Follow-up:** None.
+
 ## 2026-10-07 14:17 EDT - Check Defender telemetry visibility
 
 - **Status:** Partially succeeded
@@ -904,3 +999,752 @@ connection strings, or sensitive portfolio content.
   not rewrite shared branch history.
 - **Follow-up:** Publish this audit-entry completion and verify local `main`
   matches `origin/main`.
+
+## 2026-10-08 09:11 EDT - Retest Defender telemetry provisioning
+
+- **Status:** Partially succeeded
+- **Scope:** Tenant | Repository
+- **Requested by:** User
+- **Purpose:** Determine whether Defender and `CloudAppEvents` provisioned
+  overnight after the service-plan changes and Microsoft service degradation.
+- **Change:** Performed read-only checks of Microsoft 365 Service health,
+  Defender Advanced Hunting, the validating administrator's Defender service
+  plans, relevant first-party service principals, and the Defender for Cloud
+  Apps App Connectors route. No tenant or runtime state changed.
+- **Result:** Microsoft marked advisory `DZ1489394` **Service restored** after
+  backlog processing completed. Impact ended October 8 at 03:37 EDT, and the
+  final update was posted at 05:02 EDT. `MTP`, `ADALLOM_S_STANDALONE`, and
+  `DEFENDER_FOR_AI` still report `Success`. The previously absent Microsoft
+  Defender for Cloud Apps APIs service principal
+  (`972bb84a-1d27-4bd3-8306-6b8e57679e8c`) now exists and is enabled, which
+  shows partial backend provisioning progress. The Information Protection
+  service principal (`9ba4f733-be8f-4112-9c4a-e3b417c44e7d`) remains absent,
+  and the App Connectors route still redirects to Defender Home.
+- **Validation:** A fresh 09:10 EDT Advanced Hunting execution of
+  `CloudAppEvents | take 1` still returned
+  `Failed to resolve table or column expression named 'CloudAppEvents'`.
+  Because the table is absent, the registered Agent Identity query could not
+  be run.
+- **Rollback:** Not applicable; read-only investigation and audit
+  documentation only.
+- **Follow-up:** Provisioning is not complete, but it changed overnight. Wait
+  at least 24 hours after the 03:37 EDT service restoration before escalating.
+  Then rerun the schema query, App Connectors route, backend-principal check,
+  Defender subscription ID, and MTP settings check from a fresh sign-in.
+
+## 2026-10-08 15:34 EDT - Review Purview DSPM setup applicability
+
+- **Status:** Succeeded
+- **Scope:** Tenant | Repository
+- **Requested by:** User
+- **Purpose:** Explain the Purview unified DSPM setup prompt and determine
+  which options are applicable to the metadata-only on-prem Agent 365 agent.
+- **Change:** Performed a read-only review of Microsoft's Agent 365 Purview
+  capability matrix, DSPM setup tasks, unified audit requirements, collection
+  policies, Entra-registered AI app integration, and Purview billing models.
+  No setup button was selected and no audit, policy, billing, role, or tenant
+  setting changed.
+- **Result:** The wizard combines required **Auditing and analytics** with
+  optional AI collection policies. Unified audit is currently not enabled,
+  and enabling it requires the Exchange Online `Audit Logs` role; Global
+  Administrator alone does not satisfy that check. Agent 365 audit supports
+  `AIInvokeAgent`, `AIInferenceCall`, `AIExecuteTool`, and `AIGuardrail`.
+  Collection policies for Copilot experiences and Enterprise AI are
+  pay-as-you-go and can capture prompts and responses. Entra-registered custom
+  AI apps require Microsoft Purview SDK integration plus pay-as-you-go for
+  full Purview interaction management. Network detection separately requires
+  a supported SASE or secure enterprise browser integration.
+- **Validation:** Compared the screenshot with Microsoft Learn documentation
+  for Agent 365, Entra-registered AI apps, DSPM setup, audit enablement,
+  collection policies, and billing. The current agent intentionally suppresses
+  prompt and response content and has no Purview SDK, Microsoft 365 channel,
+  or SASE integration, so optional content-classification, DLP, eDiscovery,
+  and risk insights would be limited without an explicitly approved content
+  integration.
+- **Rollback:** Not applicable; read-only investigation and audit
+  documentation only.
+- **Follow-up:** Do not select **Start setup** as a single combined action.
+  First decide whether to enable unified audit only through an administrator
+  with the `Audit Logs` role. Review the three collection policies, Azure
+  billing linkage, scope, content capture, privacy, retention, and expected
+  cost separately before enabling any pay-as-you-go policy.
+
+## 2026-10-08 15:52 EDT - Enable unified audit only
+
+- **Status:** Failed
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Enable the minimum Purview prerequisite needed to search Agent
+  365 invocation, inference, tool, and guardrail audit activities without
+  enabling content collection or pay-as-you-go features.
+- **Change:** Use Exchange Online to set
+  `UnifiedAuditLogIngestionEnabled` from `False` to `True` for tenant
+  `00648bab-6c91-4292-9a2a-2297df511222`. Do not start the combined DSPM
+  wizard and do not create or modify collection policies, Azure billing,
+  Purview SDK integration, DLP, retention, eDiscovery, or content capture.
+- **Result:** Exchange rejected two attempts to enable unified audit before
+  changing the setting. Both returned
+  `InvalidOperationInDehydratedContextException` and required the separate
+  one-time `Enable-OrganizationCustomization` operation. No audit, collection
+  policy, billing, role, or content-capture setting changed.
+- **Validation:** A read-only Exchange check confirmed the value remains
+  `False`. The signed-in administrator has the required `Audit Logs` role
+  through the Exchange `Organization Management` role group.
+  `Get-OrganizationConfig` reported `IsDehydrated: False`, but both write
+  attempts still returned the same server-side customization prerequisite.
+- **Rollback:** Run
+  `Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $false` using an
+  authorized Exchange Online administrator.
+- **Follow-up:** Obtain explicit administrator approval for the separate,
+  tenant-wide `Enable-OrganizationCustomization` prerequisite. If approved,
+  run it once, wait for propagation, retry unified audit, verify the flag, and
+  search for Agent 365 audit operations after ingestion.
+
+## 2026-10-08 16:09 EDT - Customize Exchange and enable audit
+
+- **Status:** Failed
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Satisfy Exchange Online's one-time organization customization
+  prerequisite so unified audit can be enabled for Agent 365 auditing.
+- **Change:** Run `Enable-OrganizationCustomization` once for the tenant, wait
+  for Exchange propagation, then set
+  `UnifiedAuditLogIngestionEnabled` to `True`. Do not enable Purview
+  collection policies, content capture, Azure billing, DLP, retention,
+  eDiscovery, or Purview SDK integration.
+- **Result:** `Enable-OrganizationCustomization` returned that the
+  organization is already enabled for customization and made no change.
+  Purview's dedicated **Start recording user and admin activity** control was
+  then selected, but the authoritative audit flag remained `False`. No audit,
+  collection policy, content capture, billing, DLP, retention, eDiscovery, or
+  Purview SDK setting changed.
+- **Validation:** Exchange reports `IsDehydrated: False`,
+  `IsUpgradingOrganization: False`, and
+  `IsUpdatingServicePlan: False`, while two direct audit write attempts still
+  return `InvalidOperationInDehydratedContextException`. The Purview Audit
+  page says it cannot determine whether activity is being recorded, and a
+  post-UI Exchange check confirms
+  `UnifiedAuditLogIngestionEnabled: False`. This corrects the setup wizard's
+  permission implication: the signed-in administrator does have the required
+  `Audit Logs` role, so the blocker is inconsistent Exchange/Purview backend
+  state rather than missing administrator permission.
+- **Rollback:** Exchange organization customization has no rollback command.
+  Unified audit can be disabled with
+  `Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $false`.
+- **Follow-up:** Do not use unsupported workarounds or start the combined DSPM
+  wizard. Allow tenant provisioning to converge and retry the authoritative
+  audit write later. If Exchange continues to report both customized and
+  dehydrated states, include the contradictory command evidence in a Microsoft
+  support case.
+
+## 2026-10-08 16:30 EDT - Compare integration with Agent 365 quickstart
+
+- **Status:** Succeeded
+- **Scope:** Repository | Tenant | Runtime
+- **Requested by:** User
+- **Purpose:** Determine whether Microsoft's current Connect an Existing Agent
+  quickstart identifies an onboarding step missing from this implementation.
+- **Change:** Performed a read-only comparison of the official quickstart and
+  SDK validation checklist with the deployed identity, S2S observability,
+  runtime, permissions, licensing, and portal evidence. No repository,
+  runtime, tenant, role, license, policy, or billing state changed.
+- **Result:** The implementation follows the documented **standard agent**
+  path: registered blueprint, Agent Identity, sponsor, S2S authentication,
+  observability package, registered Agent Identity attribution, and root
+  `invoke_agent` activity. Normal agent behavior, tool execution, metadata
+  privacy, secret exclusion, and Admin Center Activity are validated. Work IQ,
+  AI-teammate messaging, notifications, and local Agents Playground are not
+  applicable to this standard S2S agent. Purview DLP is an optional,
+  independently adopted capability requiring DSPM onboarding, licensing,
+  pay-as-you-go billing, and additional code integration; it is not a missing
+  prerequisite for basic observability.
+- **Validation:** Compared every applicable section of Microsoft's quickstart
+  and validation checklist. The remaining failed required checks are
+  destination-side: `CloudAppEvents` is still unavailable in Defender and
+  Purview unified audit remains disabled because Exchange's write path
+  inconsistently reports a dehydrated organization. Admin Center Activity
+  proves accepted root telemetry.
+- **Rollback:** Not applicable; read-only documentation comparison.
+- **Follow-up:** Do not rerun broad setup or enable optional capabilities to
+  mask destination provisioning failures. Retry Defender and Purview after
+  propagation, then escalate the two specific backend blockers if they remain.
+
+## 2026-10-08 16:52 EDT - Clarify Agents Toolkit requirement
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Determine whether an existing third-party agent must be
+  scaffolded with Microsoft 365 Agents Toolkit to onboard to Agent 365.
+- **Change:** Performed a read-only review of the downloaded
+  `Agent365-LangChain-Guide-v3.1 (1).pdf`, Microsoft 365 Agents Toolkit
+  guidance, the official Agent 365 existing-agent quickstart, and the current
+  Python trading agent. Installed `pypdf` 6.19.0 only in session artifact
+  storage to extract the 25-page PDF; no project dependency or runtime changed.
+- **Result:** Microsoft 365 Agents Toolkit is not required for Agent 365
+  identity, Registry, or S2S observability. It scaffolds and automates
+  Microsoft 365/Teams-facing experiences such as Bot Framework messaging,
+  application manifests and packages, local Agents Playground, provisioning,
+  deployment, SSO, and channel UX. The trading agent already follows the
+  supported standard-agent path through Microsoft Agent Framework plus manual
+  Agent 365 identity and observability integration. The PDF describes a
+  different AI-teammate path: Node.js LangChain on AWS, Teams messaging, an
+  agent user, Frontier preview, and Work IQ MCP access.
+- **Validation:** The trading agent is present in Agent Registry and Admin
+  Center Activity without an Agents Toolkit project, directly proving Toolkit
+  scaffolding is not an onboarding prerequisite. Official guidance supports
+  both Skills-based and manual integration of existing agents.
+- **Rollback:** Delete the session-only PDF extraction package and text
+  artifact if no longer needed; no tenant or application state changed.
+- **Follow-up:** Keep the existing Python runtime. Add an Agents Toolkit
+  channel adapter or separately scaffolded Microsoft 365 app only if Teams,
+  Outlook, Copilot, Adaptive Cards, delegated user SSO, or app-catalog
+  distribution becomes a requirement. Do not expect Toolkit to fix Defender,
+  Purview, or APIM authorization.
+
+## 2026-10-08 17:40 EDT - Confirm Defender CloudAppEvents provisioning
+
+- **Status:** Succeeded
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Confirm whether the previously unavailable Defender Advanced
+  Hunting `CloudAppEvents` table has finished provisioning.
+- **Change:** Reviewed the user-provided Defender query-history evidence for
+  repeated `CloudAppEvents | take 1` schema checks. No tenant, query, policy,
+  license, connector, or runtime state was changed.
+- **Result:** The table now resolves. Query attempts at 17:38:19, 17:38:21,
+  and 17:38:24 failed, while attempts beginning at 17:38:40 and continuing
+  through 17:39:22 completed successfully. This clears the prior Defender
+  table-provisioning blocker.
+- **Validation:** Defender Advanced Hunting query history showed multiple
+  consecutive completed executions with query times between 0.63 seconds and
+  1 second.
+- **Rollback:** Not applicable; read-only validation.
+- **Follow-up:** Query recent `CloudAppEvents` records for the Trading Platform
+  Agent Identity and inspect the available schema before finalizing the
+  production hunting query. A completed `take 1` proves table availability but
+  does not by itself prove that this agent's telemetry is present.
+
+## 2026-10-08 17:43 EDT - Test Defender hunting CLI access
+
+- **Status:** Partially succeeded
+- **Scope:** Workstation | Tenant
+- **Requested by:** User
+- **Purpose:** Establish a faster command-line loop for Agent 365 Defender
+  Advanced Hunting queries.
+- **Change:** Used the existing authenticated Azure CLI session to submit the
+  read-only query `CloudAppEvents | take 1` to Microsoft Graph
+  `POST /v1.0/security/runHuntingQuery`. No package, application, permission,
+  consent, role, or tenant configuration was changed. The temporary JSON
+  request file was removed immediately.
+- **Result:** Microsoft Graph accepted the endpoint and request format but
+  returned `Forbidden` because the Azure CLI token lacks the required
+  delegated `ThreatHunting.Read.All` scope. The signed-in administrator and
+  tenant context were otherwise valid.
+- **Validation:** The final Graph response explicitly identified
+  `ThreatHunting.Read.All` as the missing required scope. Request ID
+  `c230adf1-098b-406f-bfc5-8ac129bd9c93` at 2026-10-08 21:43:56 UTC.
+- **Rollback:** Not applicable; read-only query attempt and temporary local
+  payload cleanup only.
+- **Follow-up:** Obtain explicit approval before adding delegated
+  `ThreatHunting.Read.All`. Prefer a dedicated least-privilege CLI application
+  for repeatable hunting, or continue using the Defender portal without a
+  tenant permission change.
+
+## 2026-10-08 17:45 EDT - Provision dedicated Defender hunting CLI
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Tenant
+- **Requested by:** User
+- **Purpose:** Provide a fast, repeatable command-line workflow for validating
+  Agent 365 telemetry in Microsoft Defender Advanced Hunting.
+- **Change:** Create a single-tenant public-client application named
+  `A365 Defender Hunting CLI - Local`, grant only delegated Microsoft Graph
+  `ThreatHunting.Read.All`, and obtain administrator consent. Do not create a
+  client secret, certificate, application permission, additional Graph scope,
+  or Defender role assignment. Added `A365/query-defender.ps1` as a read-only
+  query wrapper that reuses authentication within one PowerShell session.
+- **Result:** Created application ID
+  `9a65a06f-b725-4769-92e9-e262f763d3e4`, application object ID
+  `0ce59406-d298-43e3-939b-5000c7e7ca9c`, and service-principal object ID
+  `91891e16-d2d7-4880-b528-cc5ee7e8af1a`. Administrator consent was granted
+  only for delegated `ThreatHunting.Read.All`; no credential was created.
+  The Graph hunting endpoint returned the complete `CloudAppEvents` schema
+  and zero rows for `CloudAppEvents | take 1`.
+- **Validation:** Authenticate by device code through the dedicated client and
+  execute `CloudAppEvents | take 1` using Microsoft Graph
+  `/v1.0/security/runHuntingQuery`. Authentication and the Graph request
+  succeeded. The local script passed PowerShell parser validation. Two later
+  fresh-process script tests timed out waiting for device-code completion, so
+  the script now intentionally reuses the Graph context in one open PowerShell
+  session rather than relying on a persistent token cache.
+- **Rollback:** Delete the dedicated app registration and its service
+  principal; remove any local query script created for it.
+- **Follow-up:** Use the script in one persistent PowerShell session to query
+  for newly ingested Trading Platform Agent events. The current successful
+  API response contained no `CloudAppEvents` rows.
+
+## 2026-10-08 18:03 EDT - Test Defender ingestion through CLI
+
+- **Status:** Partially succeeded
+- **Scope:** Workstation | Tenant | Runtime
+- **Requested by:** User
+- **Purpose:** Determine whether recent Trading Platform Agent activity has
+  reached Defender after `CloudAppEvents` became available.
+- **Change:** Authenticated the dedicated hunting CLI by device code and ran a
+  read-only, unfiltered `CloudAppEvents` query for the previous two hours.
+  Checked the local health endpoint and recent container logs for A365
+  authentication, exporter errors, and HTTP outcomes. No tenant or runtime
+  configuration changed. Corrected only the local script's optional schema
+  display formatting.
+- **Result:** The Graph hunting request completed successfully but returned
+  zero rows for the entire `CloudAppEvents` table in the two-hour window.
+  Local A365 observability reports `enabled`, `ready`, `token_ready`, no last
+  error, and content recording disabled. Three chat requests completed with
+  HTTP 200 at 17:36:58, 17:37:31, and 17:39:36 EDT; one earlier request at
+  17:27:30 returned HTTP 500. No A365, OTLP, telemetry-export, or exception
+  error appeared in the targeted container-log search.
+- **Validation:** Microsoft Graph returned a successful hunting response with
+  no matching rows. The local `/health` response was healthy, the script
+  passed PowerShell parser validation, and container access logs confirmed the
+  three successful invocations. No prompt, response, account, holding, SQL, or
+  other portfolio content was recorded.
+- **Rollback:** Revert the schema-display formatting correction if needed; all
+  other actions were read-only.
+- **Follow-up:** Allow Defender ingestion to catch up after the newly
+  provisioned table, then rerun the broad query before applying the Agent
+  Identity filter. If the table remains empty after the documented propagation
+  window, inspect exporter delivery diagnostics or escalate the tenant's Agent
+  365-to-Defender routing.
+
+## 2026-10-08 18:10 EDT - Validate exporter delivery to Agent 365
+
+- **Status:** Succeeded
+- **Scope:** Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Determine whether the empty Defender table is caused by span
+  creation, exporter filtering, authentication, HTTP delivery, or downstream
+  ingestion.
+- **Change:** In an isolated process inside the existing API container, loaded
+  the deployed metadata-only A365 configuration, acquired the Agent Identity
+  token, created one controlled `InvokeAgent` span with marker
+  `defender-debug-44041021-8e07-4bca-8283-3997fbc4a8a5`, and force-flushed the
+  exporter. Enabled targeted exporter debug logging only for this process. No
+  prompt, response, portfolio data, credential, or token was logged or
+  exported.
+- **Result:** The span was eligible and partitioned under tenant
+  `00648bab-6c91-4292-9a2a-2297df511222` and Agent Identity
+  `7f2edbcc-8375-4d1d-a430-93c14e8db94e`. The exporter sent one 1,614-byte
+  span to the Agent 365 S2S OTLP endpoint and received HTTP 200. The response
+  reported zero rejected spans and sink status `sent` for `flashpoint`,
+  `sentinel`, and `esp`.
+- **Validation:** Agent 365 correlation ID
+  `6edd2434-0d52-4235-b441-072f332cbee8`; exported span ID
+  `1ce11f1271d9368a`. Token readiness and metadata-only privacy status were
+  healthy in the isolated process.
+- **Rollback:** Not applicable; this created one intentional metadata-only
+  validation span and made no configuration change.
+- **Follow-up:** Query Defender for the marker, Agent Identity, span ID, or
+  correlation ID after downstream indexing. If the event does not arrive, use
+  the HTTP 200 response and sink statuses to escalate Agent 365-to-Defender
+  routing rather than changing application authentication or instrumentation.
+
+## 2026-10-08 18:18 EDT - Isolate downstream Defender routing failure
+
+- **Status:** Failed
+- **Scope:** Workstation | Tenant | Runtime
+- **Requested by:** User
+- **Purpose:** Complete Microsoft's documented post-export verification and
+  determine whether the controlled Agent 365 span reached Defender.
+- **Change:** After the documented approximately five-minute indexing wait,
+  queried `CloudAppEvents` across 24 hours using the controlled marker,
+  registered Agent Identity, exported span ID, and ingestion correlation ID.
+  Replaced the local helper's Microsoft Graph module login with direct Entra
+  device-code authentication so it uses the full server-defined sign-in window
+  and retains the access token only in the current PowerShell process. No token
+  is printed or written to disk.
+- **Result:** The post-wait Microsoft Graph hunting query completed
+  successfully but returned no matching row. The preceding ingestion response
+  had HTTP 200, `partialSuccess.rejectedSpans: 0`, and `sent` status for all
+  returned sinks. Microsoft documentation says to inspect those fields, wait
+  approximately five minutes, and then query Defender; all documented
+  application-side verification steps now pass, but Defender indexing does
+  not.
+- **Validation:** Queried independently by marker
+  `defender-debug-44041021-8e07-4bca-8283-3997fbc4a8a5`, Agent Identity
+  `7f2edbcc-8375-4d1d-a430-93c14e8db94e`, span ID
+  `1ce11f1271d9368a`, and correlation ID
+  `6edd2434-0d52-4235-b441-072f332cbee8`. The query helper passed PowerShell
+  parser and whitespace validation.
+- **Rollback:** Revert the local device-flow helper changes if persistent
+  in-process token reuse is not wanted; delete the dedicated hunting CLI app
+  to remove its delegated permission. The intentional validation span cannot
+  be deleted from Microsoft's telemetry pipeline.
+- **Follow-up:** Escalate Agent 365-to-Defender downstream routing/indexing to
+  Microsoft with the tenant ID, Agent Identity, UTC export time, correlation
+  ID, span ID, HTTP response sink statuses, successful Graph query evidence,
+  and the earlier `CloudAppEvents` provisioning transition. Do not change the
+  working exporter or broaden permissions.
+
+## 2026-10-09 08:59 EDT - Confirm overnight Defender non-arrival
+
+- **Status:** Failed
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Determine whether additional overnight propagation resolved the
+  missing Agent 365 events in Defender.
+- **Change:** The administrator reran the dedicated read-only Defender hunting
+  CLI after an overnight wait. No tenant, application, permission, runtime, or
+  query-helper configuration changed.
+- **Result:** Device-code authentication and the Microsoft Graph hunting query
+  completed successfully, but the query still returned no matching
+  `CloudAppEvents` rows. The delay now substantially exceeds Microsoft's
+  documented approximately five-minute verification interval.
+- **Validation:** Successful CLI output explicitly reported
+  `Query completed successfully with no matching rows.` This follows the
+  controlled exporter response that reported HTTP 200, zero rejected spans,
+  and `sent` status for every returned sink.
+- **Rollback:** Not applicable; read-only verification.
+- **Follow-up:** Open a Microsoft support case for Agent 365-to-Defender
+  downstream routing/indexing. Include correlation ID
+  `6edd2434-0d52-4235-b441-072f332cbee8`, span ID
+  `1ce11f1271d9368a`, Agent Identity
+  `7f2edbcc-8375-4d1d-a430-93c14e8db94e`, tenant ID
+  `00648bab-6c91-4292-9a2a-2297df511222`, the sink-status response, the
+  `CloudAppEvents` provisioning transition, and both immediate and overnight
+  successful no-result queries.
+
+## 2026-10-09 09:02 EDT - Revalidate deployed LOB collection configuration
+
+- **Status:** Succeeded
+- **Scope:** Runtime | Repository
+- **Requested by:** User
+- **Purpose:** Confirm that the live LOB container, rather than only the source
+  tree or isolated validation process, is correctly configured to emit Agent
+  365 observability telemetry.
+- **Change:** Performed read-only checks of the running container's non-secret
+  A365 environment, installed package versions, startup command, and SHA-256
+  hashes for the deployed observability and API modules. No secret value,
+  token, prompt, response, or portfolio content was read or recorded.
+- **Result:** The container has A365 observability enabled; tenant, blueprint,
+  and Agent Identity IDs match the registered objects; content recording is
+  disabled; and the channel is `local-cli`. The deployed
+  `observability/a365.py` and `api/main.py` hashes exactly match the workspace.
+  The container runs `microsoft-opentelemetry` 1.3.9 and the pinned Microsoft
+  Agent Framework packages. Queue, delay, timeout, S2S endpoint, input
+  suppression, and exporter-enable values that are absent from the environment
+  are supplied explicitly or defaulted safely by `A365Settings` and
+  `use_microsoft_opentelemetry`.
+- **Validation:** Both deployed-file hashes matched their local counterparts.
+  The controlled span executed this exact deployed code and received HTTP 200,
+  zero rejected spans, and `sent` for all returned sinks. The live health
+  endpoint reports A365 enabled, ready, token-ready, no last error, and content
+  recording disabled.
+- **Rollback:** Not applicable; read-only validation.
+- **Follow-up:** Treat the empty Defender table as a tenant downstream
+  routing/indexing issue. Do not change the validated LOB exporter
+  configuration or broaden its permissions unless Microsoft identifies a
+  specific unsupported setting.
+
+## 2026-10-09 09:12 EDT - Test complete invoke-agent attribute set
+
+- **Status:** Failed
+- **Scope:** Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Test whether fields newly documented as mandatory explain why
+  accepted Agent 365 spans do not appear in Defender.
+- **Change:** Emit one synthetic metadata-only `invoke_agent` span containing
+  the current required identity, conversation, channel, caller, client/server
+  endpoint, input-envelope, and output-envelope fields. Use only the literal
+  text `[REDACTED]`, the known administrator object ID, loopback client
+  address, and local service endpoint; do not include a prompt, response,
+  portfolio identifier, SQL, credential, or token. Capture the ingestion
+  response and query Defender after the documented indexing interval.
+- **Result:** The synthetic span contained every field currently documented as
+  mandatory for a root `invoke_agent`: operation, tenant, agent ID/name,
+  blueprint ID, conversation, channel, client address, server address/port,
+  user ID, and redacted input/output message envelopes. Agent 365 accepted it
+  with HTTP 200, zero rejected spans, and `sent` for all returned sinks.
+  Correlation ID `d6bbe952-c35c-4e1f-bf3f-b610aac40041`; span ID
+  `6c86212258f424b0`. After the documented indexing wait, the Defender query
+  still returned no matching row.
+- **Validation:** Compare the sanitized emitted attribute set with Microsoft's
+  October 2026 attribute reference, require HTTP 200 with zero rejected spans,
+  then query by Agent Identity and unique marker
+  `complete-attrs-67ce0709-78b0-4cb3-b90c-c8ef5141d64f`. Local capture
+  confirmed every mandatory field was present without printing message
+  content.
+- **Rollback:** Not applicable; the synthetic validation span cannot be
+  removed from Microsoft's telemetry pipeline but contains no business
+  content.
+- **Follow-up:** Missing fields in the production metadata-only span are a
+  conformance and experience-quality gap, but not the cause of the empty
+  Defender table because the complete synthetic span also failed to appear.
+  Correct the canonical channel and endpoint fields separately; review privacy
+  before exporting user identity, client IP, or message envelopes. Escalate
+  downstream routing with both ingestion correlation IDs.
+
+## 2026-10-09 09:20 EDT - Reconcile design with current documentation
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Reassess the end-to-end design, implementation, and current
+  Microsoft documentation before escalating the Defender issue.
+- **Change:** Performed a read-only comparison against Microsoft's October
+  2026 OpenTelemetry Distro, S2S authentication, attribute reference,
+  observability concepts, direct OTel troubleshooting, CloudAppEvents, and
+  Defender Advanced Hunting permission documentation. Inspected sanitized live
+  span attributes and installed Agent Framework instrumentation.
+- **Result:** The two-step `fmi_path` token exchange, app-only validation,
+  token caching, S2S endpoint, registered Agent Identity, exporter enablement,
+  batching, root scope, baggage identity, Agent Framework instrumentor, and
+  metadata privacy controls align with the supported design. Global
+  Administrator grants full Advanced Hunting read access, so Defender RBAC
+  does not explain an empty result. Agent 365 documentation requires Purview
+  auditing only for Purview and Defender Advanced Hunting access for Defender;
+  it does not list a traditional Cloud Apps connector or Purview content
+  collection policy as an OTel prerequisite.
+- **Validation:** The deployed package exposes the documented
+  `agent_framework` instrumentor. Source hashes match the running container.
+  Both the production-shaped span and a fully populated synthetic span were
+  accepted and routed to all returned sinks, while immediate, post-wait, and
+  overnight Defender queries remained empty.
+- **Rollback:** Not applicable; documentation and read-only implementation
+  review only.
+- **Follow-up:** Make the low-risk channel/endpoint metadata corrections for
+  current-schema conformance, retain metadata-only message suppression unless
+  privacy policy changes, and open Microsoft support for downstream Defender
+  routing using both correlation IDs.
+
+## 2026-10-09 09:28 EDT - Deploy metadata conformance correction
+
+- **Status:** Partially succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Bring the production metadata-only root span into conformance
+  with the current canonical Agent 365 channel and service-endpoint fields
+  before the final Defender retest.
+- **Change:** Replace the obsolete `gen_ai.conversation.channel` attribute with
+  SDK-generated `microsoft.channel.name`, add non-sensitive server address and
+  port metadata, preserve prompt/response suppression, rebuild the local API
+  image, and restart only the local API container. Do not add caller identity,
+  client IP, prompt, response, tool arguments, or portfolio content.
+- **Result:** The image was rebuilt and only the API container was recreated.
+  The API container is running image
+  `sha256:8de6334dc1d91f03cd9603578b5adf30f4ea8ecb2f4ce65d79451ab67381fbc3`.
+  PostgreSQL and Adminer were not recreated. Exact live-request exporter
+  acceptance and Defender indexing remain unverified.
+- **Validation:** On 2026-10-09 at 14:19 EDT, SHA-256 hashes for
+  `observability/a365.py`, `api/main.py`, and `main.py` matched between the
+  workspace and running API container. The container is healthy and its live
+  environment contains `A365_CHANNEL_NAME=local-cli`,
+  `A365_RECORD_CONTENT=false`, `A365_SERVER_ADDRESS=localhost`, and
+  `A365_SERVER_PORT=8989`. Focused tests, sanitized span inspection, healthy
+  startup, and successful chat invocation passed earlier. Exact live-request
+  HTTP 200 exporter evidence and a matching Defender row are still required.
+- **Rollback:** Rebuild the prior source revision and restart only the local
+  API container.
+- **Follow-up:** Capture one live request's exporter response and query Defender
+  using its correlation identifiers after the indexing interval.
+
+## 2026-10-09 14:28 EDT - Add pseudonymous user attribution
+
+- **Status:** Partially succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Distinguish Agent 365 invocations made by different authenticated
+  Entra users without exporting names, email addresses, raw access tokens, or
+  raw Entra tenant and object IDs.
+- **Change:** Cryptographically validate the console bearer token against the
+  configured Entra tenant and APIM audience, derive a stable SHA-256 identifier
+  from the validated `tid` and `oid` claims, and emit only that pseudonymous
+  identifier as the root span `user.id`. Add focused tests and update the
+  directly related Agent 365 privacy documentation. Do not install or upgrade
+  dependencies.
+- **Result:** Added signature, issuer, audience, expiry, tenant, and object-ID
+  validation for device-code bearer tokens while Agent 365 is enabled. The API
+  now hashes the validated `tid` and `oid` values and supplies only the
+  resulting 64-character SHA-256 value as root span `user.id`. Updated the
+  privacy documentation, rebuilt image
+  `sha256:85e7cca402f0e4b62e07f79ec3e4d70c8a133698b9ecf15d8b7ef77ff934a6fb`,
+  and recreated only the API container. An initial build command failed
+  without changing runtime state because it looked for `.env` at the repository
+  root; rerunning from the application directory succeeded. No dependency was
+  installed or upgraded. The first live request returned HTTP 401 because the
+  validator accepted only the configured `api://<application-id>` audience
+  form. Corrected it to accept both that identifier URI and the equivalent
+  configured application GUID, and changed 401 details to identify only a safe
+  validation category without exposing tokens or claims. The next live request
+  passed user-token validation and reached APIM, where it failed with HTTP 403
+  because the Windows-hosted API resolved the private-only APIM hostname to its
+  public address. Added an approved Windows hosts mapping to `10.100.2.4`.
+  During repair, an elevated command unexpectedly truncated the hosts file.
+  No backup existed, so it was immediately restored as a valid minimal file
+  containing localhost plus the previously observed `10.100.1.4` APIM mapping
+  and the approved `10.100.2.4` mapping. Any unobserved prior custom entries
+  could not be recovered.
+- **Validation:** The 23 focused authentication and Agent 365 observability
+  tests passed. Changed Python files compiled successfully. The rebuilt API
+  container started successfully and became healthy, while the existing
+  PostgreSQL container and persistent volume were retained. The broader
+  `test_api.py` suite could not collect because the pre-existing local MCP
+  package lacks `streamable_http_client`; dependencies were intentionally left
+  unchanged. After the audience correction, 24 focused tests passed. A new live
+  request proved that bearer-token validation succeeds. Windows DNS now
+  resolves the active APIM hostname to `10.100.2.4`; an HTTPS request reached
+  that private address and returned HTTP 404 for the root path, confirming
+  private routing and TLS. The user then retried from the signed-in console and
+  confirmed that the agent replied successfully. Sanitized span inspection and
+  Defender indexing are still required.
+- **Rollback:** Remove inbound identity validation and the `user.id` span
+  attribute, rebuild the prior API image, and recreate only the API container.
+- **Follow-up:** Send one request from each signed-in console, capture the
+  sanitized root spans, and confirm that `user.id` is stable within one user,
+  differs between users, and contains neither raw Entra identifier.
+
+## 2026-10-09 16:44 EDT - Capture live exporter acceptance
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Determine whether successful local agent requests are exported
+  from the actual API process before escalating the still-empty Defender
+  `CloudAppEvents` table as a downstream routing or indexing failure.
+- **Change:** Add a temporary, opt-in exporter diagnostic that logs only span
+  counts, destination, HTTP status, correlation ID, and the bounded Agent 365
+  sink-status response. Do not log span payloads, tokens, prompts, responses,
+  pseudonymous user IDs, or portfolio content.
+- **Result:** A live local API request created three recording spans and forced
+  the configured SDK tracer provider to export them. Agent 365 returned HTTP
+  200 with correlation ID `b8b72f59-0357-4533-b53f-11d3947111e4`; the bounded
+  response reported the visible span sink statuses as `sent` for Flashpoint,
+  Sentinel, and ESP. The root `InvokeAgent` span ID was
+  `9ab6ae0854d39c9c`. The batch contained three spans and was 27,381 bytes.
+  Removed the automatic diagnostic switch from `startapi.bat` after capture;
+  the diagnostic code remains opt-in for future investigations.
+- **Validation:** The live API printed `recording=True`, used an SDK
+  `TracerProvider`, returned `force_flush=True`, received exporter HTTP 200,
+  and completed the `/chat` request with HTTP 200. Twenty-six focused Agent 365
+  and identity tests passed before the live capture.
+- **Rollback:** Disable the diagnostic environment switch and remove the
+  temporary launcher setting after capturing the response.
+- **Follow-up:** Query Defender after the indexing interval. If
+  `CloudAppEvents` remains empty, escalate to Microsoft with the correlation
+  ID, span ID, tenant ID, agent identity, timestamp, and prior controlled
+  export evidence because the remaining failure is downstream of successful
+  Agent 365 ingestion.
+
+## 2026-10-09 17:17 EDT - Enable full observability content
+
+- **Status:** Partially succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Make Agent 365 useful for behavioral investigation by recording
+  what users ask, how the agent responds, and available tool/inference content
+  instead of limiting telemetry to metadata and aggregate metrics.
+- **Change:** Enable full Agent 365 content recording in every environment,
+  pass prompts and responses into the root `InvokeAgent` span, disable the
+  Distro's invocation-input suppression, and enable sensitive-data capture.
+  Update configuration and privacy documentation to disclose that portfolio
+  prompts, responses, account identifiers, holdings, SQL, and tool data may be
+  transmitted to Microsoft observability services.
+- **Result:** Full-content mode is implemented and active in the local API.
+  Prompts and responses are passed into the root `InvokeAgent` scope, invocation
+  input suppression is disabled, and sensitive-data instrumentation is enabled.
+  Local and Docker launch configuration now sets
+  `A365_RECORD_CONTENT=true`. This does not prove that Microsoft exposes the
+  captured content or optional token counts in a customer-facing Agent 365
+  surface; the Registry Activity page remains an aggregate dashboard.
+- **Validation:** Twenty-seven focused tests passed, including prompt and
+  response recording. Changed Python files compiled successfully. The live API
+  process started at 17:24 EDT and `/health` reports Agent 365 `ready`,
+  `token_ready=true`, and `content_recording=true`. A live payload inspection
+  and documented UI/query surface for prompts, responses, and token counts
+  remain unverified.
+- **Rollback:** Restore `A365_RECORD_CONTENT=false`, prompt suppression, and
+  `enable_sensitive_data=False`, then restart the API.
+- **Follow-up:** Inspect one sanitized live export payload to establish which
+  content and token attributes are emitted, then verify only documented
+  customer-facing Agent 365, Defender, or Purview surfaces. Do not claim that
+  enabling capture makes those fields visible in the Registry Activity page.
+
+## 2026-10-09 18:26 EDT - Distinguish Defender alert pipelines
+
+- **Status:** Succeeded
+- **Scope:** Tenant | Runtime
+- **Requested by:** User
+- **Purpose:** Determine whether a Defender
+  `LLM Reconnaissance Attempt Detected (Preview)` incident proves that Agent
+  365 telemetry is present in `CloudAppEvents`.
+- **Change:** Read-only review of the incident screenshot, event timing, current
+  Defender alert documentation, and Advanced Hunting table responsibilities.
+- **Result:** The incident proves that Defender received and analyzed the
+  system-prompt reconnaissance interaction, but it does not prove Agent 365
+  OpenTelemetry reached `CloudAppEvents`. The incident activity occurred at
+  approximately 16:02 EDT, before the confirmed 16:58 Agent 365 exporter
+  capture and before full-content mode was enabled. Its title maps to Defender
+  for Cloud AI workload alert `AI.Azure_LLMReconnaissance`, whose alert records
+  are queried through `AlertInfo` and `AlertEvidence`. This is a separate
+  detection pipeline from Agent 365 observability records in
+  `CloudAppEvents`.
+- **Validation:** `CloudAppEvents | take 1` is valid KQL and would return one
+  accessible retained row if that table contained any. Defender incidents can
+  coexist with an empty `CloudAppEvents` result because `AlertInfo` and
+  `AlertEvidence` are separate Advanced Hunting tables and data pipelines.
+- **Rollback:** Not applicable.
+- **Follow-up:** Query the reconnaissance incident through `AlertInfo` and
+  `AlertEvidence`; continue using the documented Agent 365 query separately
+  for `CloudAppEvents`.
+
+## 2026-10-12 09:40 EDT - Relocate portfolio manager under Wealth
+
+- **Status:** Partially succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Organize the portfolio-manager agent beneath its owning Contoso Bank
+  line of business.
+- **Change:** Move `lob/ai-agent-starter-portfolio-manager/` to
+  `lob/wealth/ai-agent-starter-portfolio-manager/` and update repository
+  references to the old path. No tenant, Azure, identity, permission, license,
+  or runtime objects will be changed.
+- **Result:** The complete project, including its current modified, untracked,
+  and local environment files, was moved to
+  `lob/wealth/ai-agent-starter-portfolio-manager/`. Active paths in the API
+  launcher, chat launcher, and Agent 365 verification runbook now use the new
+  location. No tenant, Azure, identity, permission, license, or runtime object
+  was changed.
+- **Validation:** Confirmed the old directory is absent, the new directory and
+  its Python virtual environment exist, and active launcher and runbook
+  references use the new path. The user did not authorize the proposed
+  targeted test run, so test validation was not performed.
+- **Rollback:** Move the directory back to
+  `lob/ai-agent-starter-portfolio-manager/` and restore the updated path
+  references.
+- **Follow-up:** Run the relocated project's tests when authorized.
+
+## 2026-10-12 09:44 EDT - Relocate Agent 365 folder to repository root
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make Agent 365 documentation and operator tooling shared
+  repository-level resources rather than nesting them under the Wealth
+  portfolio-manager project.
+- **Change:** Move
+  `lob/wealth/ai-agent-starter-portfolio-manager/A365/` to repository-root
+  `A365/`, then update active links, commands, and relative paths affected by
+  the relocation. No tenant, Azure, identity, permission, license, or runtime
+  objects will be changed.
+- **Result:** Moved all Agent 365 documentation and operator tooling to
+  repository-root `A365/`. Updated the Wealth portfolio-manager README links
+  and changed the Defender query instructions to run from the repository root.
+  No tenant, Azure, identity, permission, license, or runtime object was
+  changed.
+- **Validation:** Confirmed the old directory is absent, root `A365/` exists
+  with all 12 source items, and the only remaining references to the old path
+  are this immutable change record's change and rollback descriptions.
+- **Rollback:** Move root `A365/` back to
+  `lob/wealth/ai-agent-starter-portfolio-manager/A365/` and restore updated
+  references.
+- **Follow-up:** None.

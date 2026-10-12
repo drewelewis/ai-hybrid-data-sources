@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables FIRST
-load_dotenv(override=True)
+load_dotenv()
 
 if __name__ == "__main__":
     from observability.a365 import initialize_a365_observability

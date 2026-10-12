@@ -21,6 +21,7 @@ Endpoints:
 """
 
 import os
+import asyncio
 from typing import Dict, Optional, Any
 from dotenv import load_dotenv
 
@@ -32,17 +33,19 @@ from agent_framework import AgentThread
 from agents.trading_platform_agent import create_trading_platform_agent
 from agents.model_endpoint_config import load_model_endpoint_config
 from api.model_errors import model_error_to_http_exception
+from api.user_identity import EntraUserTokenValidator, UserTokenValidationError
 from observability.a365 import (
     a365_invoke_scope,
     flush_a365_telemetry,
     get_a365_status,
     prepare_a365_telemetry,
+    record_a365_response,
     start_a365_token_refresh,
     stop_a365_token_refresh,
 )
 from operations.trading_platform_operations import TradingPlatformOperations
 
-load_dotenv(override=True)
+load_dotenv()
 
 # ── Service metadata ───────────────────────────────────────────────────────────
 SERVICE_NAME    = os.getenv("SERVICE_NAME",    "trading-platform-api")
@@ -82,6 +85,7 @@ app.add_middleware(
 # ── Global singletons ──────────────────────────────────────────────────────────
 agent       = None                          # TradingPlatformAgent (ChatAgent)
 client_supplied_auth = False
+user_token_validator: EntraUserTokenValidator | None = None
 db_ops      = TradingPlatformOperations()   # Direct DB access for structured endpoints
 sessions: Dict[str, AgentThread] = {}       # session_id -> AgentThread
 
@@ -124,7 +128,7 @@ class QueryRequest(BaseModel):
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
-    global agent, client_supplied_auth
+    global agent, client_supplied_auth, user_token_validator
     load_model_endpoint_config()
     client_supplied_auth = (
         os.getenv("AZURE_AUTH_MODE", "default").strip().lower() == "device-code"
@@ -133,6 +137,21 @@ async def startup():
     print(f"[{SERVICE_NAME}] Initializing TradingPlatformAgent ...")
     if not client_supplied_auth:
         agent = await create_trading_platform_agent()
+    elif os.getenv("ENABLE_A365_OBSERVABILITY", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        try:
+            user_token_validator = EntraUserTokenValidator(
+                os.getenv("A365_TENANT_ID", ""),
+                os.getenv("APIM_TOKEN_SCOPE", ""),
+            )
+        except UserTokenValidationError as error:
+            raise RuntimeError(
+                "Device-code user attribution configuration is invalid."
+            ) from error
 
     print(f"[{SERVICE_NAME}] Connecting to database ...")
     await db_ops.initialize()
@@ -224,26 +243,45 @@ async def chat(
     """
     _require_agent()
     await prepare_a365_telemetry()
+    token = ""
+    pseudonymous_user_id = None
+    if client_supplied_auth:
+        scheme, _, token = (authorization or "").partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(
+                status_code=401,
+                detail="A bearer token from chat.py is required.",
+            )
+        if user_token_validator is not None:
+            try:
+                pseudonymous_user_id = await asyncio.to_thread(
+                    user_token_validator.pseudonymous_user_id, token
+                )
+            except UserTokenValidationError as error:
+                raise HTTPException(
+                    status_code=401,
+                    detail=str(error),
+                ) from error
     try:
-        with a365_invoke_scope(request.session_id) as telemetry_scope:
+        with a365_invoke_scope(
+            request.session_id,
+            pseudonymous_user_id,
+            request.message,
+        ) as telemetry_scope:
             try:
                 request_agent = agent
                 if client_supplied_auth:
-                    scheme, _, token = (authorization or "").partition(" ")
-                    if scheme.lower() != "bearer" or not token:
-                        raise HTTPException(
-                            status_code=401,
-                            detail="A bearer token from chat.py is required.",
-                        )
                     request_agent = await create_trading_platform_agent(
                         ad_token_provider=lambda: token,
                     )
 
                 thread = _get_thread(request.session_id)
                 response = await request_agent.run(request.message, thread=thread)
+                response_text = response.text or ""
+                record_a365_response(telemetry_scope, response_text)
                 return ChatResponse(
                     session_id=request.session_id,
-                    response=response.text or "",
+                    response=response_text,
                 )
             except Exception as error:
                 if telemetry_scope is not None:

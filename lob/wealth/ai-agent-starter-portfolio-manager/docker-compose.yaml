@@ -40,13 +40,15 @@ services:
       - SERVICE_NAME=ai-agent-starter-portfolio-manager
       - SERVICE_VERSION=1.0.0
 
-      # Microsoft Agent 365 metadata-only observability
+      # Microsoft Agent 365 full-content observability
       - ENABLE_A365_OBSERVABILITY=${ENABLE_A365_OBSERVABILITY:-false}
       - A365_TENANT_ID=${A365_TENANT_ID:-}
       - A365_BLUEPRINT_CLIENT_ID=${A365_BLUEPRINT_CLIENT_ID:-}
       - A365_AGENT_ID=${A365_AGENT_ID:-}
-      - A365_RECORD_CONTENT=false
+      - A365_RECORD_CONTENT=true
       - A365_CHANNEL_NAME=${A365_CHANNEL_NAME:-local-cli}
+      - A365_SERVER_ADDRESS=${A365_SERVER_ADDRESS:-localhost}
+      - A365_SERVER_PORT=${A365_SERVER_PORT:-8989}
     env_file:
       - .env
     restart: unless-stopped

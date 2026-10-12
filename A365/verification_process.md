@@ -55,7 +55,7 @@ missing.
 Open PowerShell and go to the application:
 
 ```powershell
-Set-Location C:\gitrepos\ai-hybrid-data-sources\lob\ai-agent-starter-portfolio-manager
+Set-Location C:\gitrepos\ai-hybrid-data-sources\lob\wealth\ai-agent-starter-portfolio-manager
 ```
 
 Confirm Docker Desktop is running. The existing Git-ignored `.env` must

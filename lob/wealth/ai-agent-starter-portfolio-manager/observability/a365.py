@@ -17,6 +17,9 @@ from typing import Iterator, Mapping
 import aiohttp
 
 LOGGER = logging.getLogger(__name__)
+EXPORTER_LOGGER_NAME = (
+    "microsoft.opentelemetry.a365.core.exporters.agent365_exporter"
+)
 
 OBSERVABILITY_RESOURCE_ID = "9b975845-388f-4429-889e-eab1ef63949c"
 OBSERVABILITY_SCOPE = f"api://{OBSERVABILITY_RESOURCE_ID}/.default"
@@ -54,9 +57,32 @@ def _required_uuid(environment: Mapping[str, str], name: str) -> str:
     return value
 
 
+def _configure_export_diagnostics(
+    environment: Mapping[str, str],
+) -> None:
+    if not _is_true(environment.get("A365_EXPORT_DEBUG")):
+        return
+
+    exporter_logger = logging.getLogger(EXPORTER_LOGGER_NAME)
+    exporter_logger.setLevel(logging.DEBUG)
+    if any(
+        getattr(handler, "_a365_export_diagnostic", False)
+        for handler in exporter_logger.handlers
+    ):
+        return
+
+    handler = logging.StreamHandler()
+    handler._a365_export_diagnostic = True
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter("A365 export: %(message)s"))
+    exporter_logger.addHandler(handler)
+    exporter_logger.propagate = False
+
+
 @dataclass(frozen=True)
 class A365Settings:
     enabled: bool
+    record_content: bool = True
     tenant_id: str = ""
     blueprint_client_id: str = ""
     blueprint_client_secret: str = ""
@@ -64,6 +90,9 @@ class A365Settings:
     service_name: str = "ai-agent-starter-portfolio-manager"
     service_version: str = "1.0.0"
     channel_name: str = "local-cli"
+    server_address: str = "localhost"
+    server_port: int = 8989
+    export_debug: bool = False
     max_queue_size: int = 2048
     scheduled_delay_ms: int = 5000
     exporter_timeout_ms: int = 30000
@@ -75,13 +104,34 @@ class A365Settings:
         if not enabled:
             return cls(enabled=False)
 
-        if _is_true(environment.get("A365_RECORD_CONTENT")):
+        server_address = environment.get(
+            "A365_SERVER_ADDRESS", "localhost"
+        ).strip()
+        if not server_address:
             raise A365ConfigurationError(
-                "A365_RECORD_CONTENT must remain false for this application."
+                "A365_SERVER_ADDRESS must not be empty."
+            )
+        try:
+            server_port = int(
+                environment.get(
+                    "A365_SERVER_PORT",
+                    environment.get("SERVER_PORT", "8989"),
+                )
+            )
+        except ValueError as error:
+            raise A365ConfigurationError(
+                "A365_SERVER_PORT must be an integer."
+            ) from error
+        if not 1 <= server_port <= 65535:
+            raise A365ConfigurationError(
+                "A365_SERVER_PORT must be between 1 and 65535."
             )
 
         return cls(
             enabled=True,
+            record_content=_is_true(
+                environment.get("A365_RECORD_CONTENT", "true")
+            ),
             tenant_id=_required_uuid(environment, "A365_TENANT_ID"),
             blueprint_client_id=_required_uuid(
                 environment, "A365_BLUEPRINT_CLIENT_ID"
@@ -95,6 +145,9 @@ class A365Settings:
             ),
             service_version=environment.get("SERVICE_VERSION", "1.0.0"),
             channel_name=environment.get("A365_CHANNEL_NAME", "local-cli"),
+            server_address=server_address,
+            server_port=server_port,
+            export_debug=_is_true(environment.get("A365_EXPORT_DEBUG")),
             max_queue_size=int(environment.get("A365_MAX_QUEUE_SIZE", "2048")),
             scheduled_delay_ms=int(
                 environment.get("A365_SCHEDULED_DELAY_MS", "5000")
@@ -289,7 +342,12 @@ class A365Runtime:
                 return payload
 
     @contextmanager
-    def invoke_scope(self, session_id: str) -> Iterator[object | None]:
+    def invoke_scope(
+        self,
+        session_id: str,
+        user_id: str | None = None,
+        input_message: str | None = None,
+    ) -> Iterator[object | None]:
         if not self.resolve_token(
             self.settings.agent_id, self.settings.tenant_id
         ):
@@ -299,16 +357,19 @@ class A365Runtime:
         from microsoft.opentelemetry.a365.core import (
             AgentDetails,
             BaggageBuilder,
+            Channel,
             InvokeAgentScope,
             InvokeAgentScopeDetails,
             Request,
+            ServiceEndpoint,
         )
 
         conversation_id = _hash_conversation_id(session_id)
         request = Request(
-            content=None,
+            content=input_message if self.settings.record_content else None,
             session_id=conversation_id,
             conversation_id=conversation_id,
+            channel=Channel(name=self.settings.channel_name),
         )
         details = AgentDetails(
             agent_id=self.settings.agent_id,
@@ -323,22 +384,65 @@ class A365Runtime:
             BaggageBuilder()
             .tenant_id(self.settings.tenant_id)
             .agent_id(self.settings.agent_id)
+            .channel_name(self.settings.channel_name)
             .conversation_id(conversation_id)
             .build()
         )
+        scope_details = InvokeAgentScopeDetails(
+            endpoint=ServiceEndpoint(
+                hostname=self.settings.server_address,
+                port=self.settings.server_port,
+            )
+        )
         with baggage:
             with InvokeAgentScope.start(
-                request, InvokeAgentScopeDetails(), details
+                request, scope_details, details
             ) as scope:
-                scope.record_attributes(
-                    {
-                        "a365.content_recording": False,
-                        "service.name": self.settings.service_name,
-                        "service.version": self.settings.service_version,
-                        "gen_ai.conversation.channel": self.settings.channel_name,
-                    }
-                )
+                span = getattr(scope, "_span", None)
+                if self.settings.export_debug:
+                    span_context = (
+                        span.get_span_context() if span is not None else None
+                    )
+                    span_id = (
+                        f"{span_context.span_id:016x}"
+                        if span_context is not None
+                        else "none"
+                    )
+                    is_recording = (
+                        span.is_recording() if span is not None else False
+                    )
+                    print(
+                        "A365 scope: "
+                        f"span_id={span_id}; recording={is_recording}",
+                        flush=True,
+                    )
+                attributes: dict[str, bool | str] = {
+                    "a365.content_recording": self.settings.record_content,
+                    "service.name": self.settings.service_name,
+                    "service.version": self.settings.service_version,
+                }
+                if user_id:
+                    attributes["user.id"] = user_id
+                scope.record_attributes(attributes)
                 yield scope
+            if self.settings.export_debug:
+                from opentelemetry import trace
+
+                provider = trace.get_tracer_provider()
+                force_flush = getattr(provider, "force_flush", None)
+                flush_result = (
+                    force_flush(
+                        timeout_millis=self.settings.exporter_timeout_ms
+                    )
+                    if callable(force_flush)
+                    else None
+                )
+                print(
+                    "A365 scope: "
+                    f"provider={type(provider).__name__}; "
+                    f"force_flush={flush_result}",
+                    flush=True,
+                )
 
     def status(self) -> dict[str, object]:
         if not self.settings.enabled:
@@ -351,7 +455,8 @@ class A365Runtime:
             "state": "ready" if token_ready else "degraded",
             "token_ready": token_ready,
             "last_error": self._last_error,
-            "content_recording": False,
+            "content_recording": self.settings.record_content,
+            "export_debug": self.settings.export_debug,
         }
 
 
@@ -369,6 +474,7 @@ def initialize_a365_observability(
     global _initialized, _runtime
 
     settings = A365Settings.load(environment)
+    _configure_export_diagnostics(environment)
     _runtime = A365Runtime(settings)
     if not settings.enabled:
         return _runtime
@@ -389,14 +495,14 @@ def initialize_a365_observability(
         enable_a365=True,
         a365_token_resolver=_runtime.resolve_token,
         a365_use_s2s_endpoint=True,
-        a365_suppress_invoke_agent_input=True,
+        a365_suppress_invoke_agent_input=not settings.record_content,
         a365_enable_observability_exporter=True,
         a365_exporter_disable_offline_storage=True,
         a365_max_queue_size=settings.max_queue_size,
         a365_scheduled_delay_ms=settings.scheduled_delay_ms,
         a365_exporter_timeout_ms=settings.exporter_timeout_ms,
         a365_max_export_batch_size=settings.max_export_batch_size,
-        enable_sensitive_data=False,
+        enable_sensitive_data=settings.record_content,
     )
     _initialized = True
     LOGGER.info("Agent 365 metadata-only observability initialized.")
@@ -415,8 +521,21 @@ async def stop_a365_token_refresh() -> None:
     await _runtime.stop_token_refresh()
 
 
-def a365_invoke_scope(session_id: str) -> Iterator[object | None]:
-    return _runtime.invoke_scope(session_id)
+def a365_invoke_scope(
+    session_id: str,
+    user_id: str | None = None,
+    input_message: str | None = None,
+) -> Iterator[object | None]:
+    return _runtime.invoke_scope(session_id, user_id, input_message)
+
+
+def record_a365_response(scope: object | None, response: str) -> None:
+    if (
+        scope is not None
+        and _runtime.settings.record_content
+        and hasattr(scope, "record_response")
+    ):
+        scope.record_response(response)
 
 
 def get_a365_status() -> dict[str, object]:

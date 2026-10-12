@@ -10,8 +10,11 @@ from observability.a365 import (
     A365Runtime,
     A365Settings,
     OBSERVABILITY_RESOURCE_ID,
+    EXPORTER_LOGGER_NAME,
+    _configure_export_diagnostics,
     _decode_claims,
     _hash_conversation_id,
+    record_a365_response,
 )
 
 
@@ -57,11 +60,57 @@ def test_enabled_configuration_reports_missing_values(missing_name):
         A365Settings.load(environment)
 
 
-def test_content_recording_cannot_be_enabled():
+def test_content_recording_defaults_to_enabled():
     environment = _enabled_environment()
-    environment["A365_RECORD_CONTENT"] = "true"
+    environment.pop("A365_RECORD_CONTENT")
 
-    with pytest.raises(A365ConfigurationError, match="must remain false"):
+    assert A365Settings.load(environment).record_content is True
+
+
+def test_export_debug_setting_is_opt_in():
+    assert A365Settings.load(_enabled_environment()).export_debug is False
+
+    environment = _enabled_environment()
+    environment["A365_EXPORT_DEBUG"] = "true"
+
+    assert A365Settings.load(environment).export_debug is True
+
+
+def test_export_diagnostics_are_opt_in_and_idempotent():
+    import logging
+
+    exporter_logger = logging.getLogger(EXPORTER_LOGGER_NAME)
+    original_handlers = list(exporter_logger.handlers)
+    original_level = exporter_logger.level
+    original_propagate = exporter_logger.propagate
+    try:
+        exporter_logger.handlers.clear()
+        _configure_export_diagnostics({})
+        assert exporter_logger.handlers == []
+
+        _configure_export_diagnostics({"A365_EXPORT_DEBUG": "true"})
+        _configure_export_diagnostics({"A365_EXPORT_DEBUG": "true"})
+
+        diagnostic_handlers = [
+            handler
+            for handler in exporter_logger.handlers
+            if getattr(handler, "_a365_export_diagnostic", False)
+        ]
+        assert len(diagnostic_handlers) == 1
+        assert exporter_logger.level == logging.DEBUG
+        assert exporter_logger.propagate is False
+    finally:
+        exporter_logger.handlers[:] = original_handlers
+        exporter_logger.setLevel(original_level)
+        exporter_logger.propagate = original_propagate
+
+
+@pytest.mark.parametrize("server_port", ["0", "65536", "not-a-port"])
+def test_server_port_must_be_valid(server_port):
+    environment = _enabled_environment()
+    environment["A365_SERVER_PORT"] = server_port
+
+    with pytest.raises(A365ConfigurationError, match="A365_SERVER_PORT"):
         A365Settings.load(environment)
 
 
@@ -173,24 +222,74 @@ def test_invoke_scope_uses_registered_identity_without_content(monkeypatch):
         def record_attributes(self, attributes):
             captured["attributes"] = attributes
 
-    def fake_start(request, _scope_details, agent_details):
+    def fake_start(request, scope_details, agent_details):
         captured["request"] = request
+        captured["scope_details"] = scope_details
         captured["agent_details"] = agent_details
         return FakeScope()
 
     monkeypatch.setattr(InvokeAgentScope, "start", staticmethod(fake_start))
 
-    with runtime.invoke_scope("raw-session-A100"):
+    pseudonymous_user_id = "a" * 64
+    with runtime.invoke_scope("raw-session-A100", pseudonymous_user_id):
         pass
 
     request = captured["request"]
     assert request.content is None
     assert request.session_id == _hash_conversation_id("raw-session-A100")
     assert request.conversation_id == request.session_id
+    assert request.channel.name == "local-cli"
+    assert captured["scope_details"].endpoint.hostname == "localhost"
+    assert captured["scope_details"].endpoint.port == 8989
     assert captured["agent_details"].agent_id == (
         "00000000-0000-0000-0000-000000000003"
     )
     assert captured["attributes"]["a365.content_recording"] is False
+    assert captured["attributes"]["user.id"] == pseudonymous_user_id
+    assert "gen_ai.conversation.channel" not in captured["attributes"]
+
+
+def test_invoke_scope_records_full_prompt_and_response(monkeypatch):
+    import observability.a365 as a365_module
+    from microsoft.opentelemetry.a365.core import InvokeAgentScope
+
+    environment = _enabled_environment()
+    environment["A365_RECORD_CONTENT"] = "true"
+    runtime = A365Runtime(A365Settings.load(environment))
+    runtime._token = "token"
+    runtime._expires_at = int(time.time()) + 600
+    captured = {}
+
+    class FakeScope:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def record_attributes(self, attributes):
+            captured["attributes"] = attributes
+
+        def record_response(self, response):
+            captured["response"] = response
+
+    def fake_start(request, scope_details, agent_details):
+        captured["request"] = request
+        return FakeScope()
+
+    monkeypatch.setattr(InvokeAgentScope, "start", staticmethod(fake_start))
+    monkeypatch.setattr(a365_module, "_runtime", runtime)
+
+    with runtime.invoke_scope(
+        "raw-session-A100",
+        "a" * 64,
+        "Show the account holdings",
+    ) as scope:
+        record_a365_response(scope, "The account holds several positions.")
+
+    assert captured["request"].content == "Show the account holdings"
+    assert captured["response"] == "The account holds several positions."
+    assert captured["attributes"]["a365.content_recording"] is True
 
 
 def test_status_never_contains_credentials_or_tokens():

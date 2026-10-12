@@ -11,7 +11,7 @@ from functools import wraps
 import asyncpg
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+load_dotenv()
 
 # ── Connection settings from .env ──────────────────────────────────────────────
 POSTGRES_HOST     = os.getenv("POSTGRES_HOST")

@@ -17,8 +17,10 @@
 | `A365_BLUEPRINT_CLIENT_ID` | Yes | No | None | Blueprint application/client ID |
 | `A365_BLUEPRINT_CLIENT_SECRET` | Yes for local development | Yes | None | Blueprint credential used only for the first token exchange |
 | `A365_AGENT_ID` | Yes | No | None | Registered agent identity client ID |
-| `A365_RECORD_CONTENT` | No | No | `false` | Prompt/response capture; keep false |
+| `A365_RECORD_CONTENT` | No | No | `true` | Captures prompts, responses, and available tool/inference content; may include portfolio data |
 | `A365_CHANNEL_NAME` | No | No | `local-cli` | Stable channel attribute |
+| `A365_SERVER_ADDRESS` | No | No | `localhost` | Agent service hostname exported as endpoint metadata |
+| `A365_SERVER_PORT` | No | No | `SERVER_PORT` or `8989` | Agent service port exported as endpoint metadata |
 | `A365_EXPORT_TIMEOUT_MS` | No | No | `30000` | Export timeout |
 | `A365_SCHEDULED_DELAY_MS` | No | No | `5000` | Batch flush delay |
 | `A365_MAX_QUEUE_SIZE` | No | No | `2048` | Export queue bound |
@@ -64,6 +66,8 @@ A365_BLUEPRINT_CLIENT_ID=00000000-0000-0000-0000-000000000000
 A365_AGENT_ID=00000000-0000-0000-0000-000000000000
 A365_RECORD_CONTENT=false
 A365_CHANNEL_NAME=local-cli
+A365_SERVER_ADDRESS=localhost
+A365_SERVER_PORT=8989
 ```
 
 ## Startup validation

@@ -23,9 +23,11 @@ The implementation plan is in
 |---|---|
 | [Implementation plan](./implementation_plan.md) | Phases, decisions, tests, rollout, and definition of done |
 | [Blueprints](./blueprints.md) | Beginner and architecture guide for Agent ID blueprints |
+| [LOB blueprint guidance](./lob_bluprints.md) | Enterprise taxonomy, boundary rules, and profiles for Contoso Bank lines of business |
 | [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
 | [Verification process](./verification_process.md) | ARRANGE, ACT, ASSERT verification for identity, telemetry, privacy, and portal arrival |
 | [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |
+| [Defender query CLI](./query-defender.ps1) | Run read-only Advanced Hunting queries from PowerShell |
 | [Configuration reference](./configuration_reference.md) | Environment variables, secrets, and compatibility |
 | [Operations runbook](./operations_runbook.md) | Monitoring, rotation, incidents, rollback, and retirement |
 | [Troubleshooting](./troubleshooting.md) | Identity, token, exporter, CLI, and telemetry failures |

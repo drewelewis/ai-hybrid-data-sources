@@ -14,7 +14,6 @@ Built-in commands:
 import asyncio
 import os
 import uuid
-import webbrowser
 from typing import Any
 
 import aiohttp
@@ -159,8 +158,6 @@ def show_device_challenge(
     print("\nMicrosoft sign-in required.")
     print(f"Open: {verification_uri}")
     print(f"Code: {user_code}\n")
-    if not webbrowser.open(verification_uri):
-        print("The browser could not be opened automatically; use the URL above.")
 
 
 async def get_model_access_token() -> str | None:

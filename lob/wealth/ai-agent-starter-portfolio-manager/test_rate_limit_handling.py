@@ -1,5 +1,5 @@
 from api.model_errors import model_error_to_http_exception
-from chat import format_api_error
+from chat import format_api_error, show_device_challenge
 
 
 def test_model_rate_limit_maps_to_http_429_with_retry_after():
@@ -40,3 +40,16 @@ def test_chat_client_formats_rate_limit_without_retrying():
         "Token limit reached. Retry in approximately 288 seconds. "
         "No automatic retry was attempted."
     )
+
+
+def test_device_challenge_prints_manual_login_instructions(capsys):
+    show_device_challenge(
+        "https://microsoft.com/devicelogin",
+        "ABCD-EFGH",
+        None,
+    )
+
+    output = capsys.readouterr().out
+    assert "Microsoft sign-in required." in output
+    assert "Open: https://microsoft.com/devicelogin" in output
+    assert "Code: ABCD-EFGH" in output

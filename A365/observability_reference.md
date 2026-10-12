@@ -74,6 +74,13 @@ A mismatch can produce HTTP 403 or telemetry that cannot be attributed.
 Generate one conversation ID per `chat.py` session. Do not use a username,
 email address, account ID, or bearer-token claim as a conversation ID.
 
+When device-code authentication and Agent 365 observability are enabled, the
+API validates the console access token's signature, issuer, audience, expiry,
+tenant, and object ID. The root span `user.id` is the SHA-256 hash of the
+validated Entra tenant and object IDs. This makes invocations from the same
+user correlatable and different users distinguishable without exporting either
+raw identifier. Names, email addresses, and access tokens remain excluded.
+
 ## Status and errors
 
 | Outcome | Span status | Required metadata |
@@ -90,24 +97,25 @@ Exporter retries must be bounded independently.
 
 ## Content policy
 
-`A365_RECORD_CONTENT` defaults to `false`.
+`A365_RECORD_CONTENT` defaults to `true`. Agent 365 receives the user prompt,
+agent response, and content emitted by supported tool and inference
+instrumentation. This can include account IDs, holdings, trade data, SQL, and
+other portfolio information.
 
-Never export:
+Do not place credentials or authentication material in prompts, tool arguments,
+tool results, or model responses. Never export:
 
-- User prompt text.
-- Model response text.
-- Tool arguments or results containing portfolio data.
-- SQL text.
-- Account IDs.
-- Trade rows.
 - APIM keys.
 - Bearer tokens.
+- Raw Entra tenant and user object IDs.
+- User names and email addresses.
 - Device codes.
 - Database credentials.
 - Full exception messages that could contain any of the above.
 
-Use allowlisted metadata rather than attempting to redact arbitrary payloads
-after collection.
+Full content recording is intentional for behavioral investigation. Access,
+retention, residency, and downstream Purview/Defender policies must be reviewed
+for the tenant because this telemetry can contain sensitive business data.
 
 ## Sampling and cardinality
 
@@ -205,6 +213,37 @@ CloudAppEvents
 | where tostring(data.Status) =~ "Error"
 | project Timestamp, ActionType, data
 | order by Timestamp desc
+```
+
+### Defender query CLI
+
+The repository includes a read-only PowerShell wrapper for the Microsoft Graph
+Advanced Hunting API. Start PowerShell in the repository root and keep that
+session open:
+
+```powershell
+pwsh
+.\A365\query-defender.ps1
+```
+
+The first run uses device-code authentication through the dedicated
+single-tenant `A365 Defender Hunting CLI - Local` public client. It requests
+only delegated `ThreatHunting.Read.All` and stores no application secret.
+The access token is retained only in the current PowerShell process; it is not
+printed or written to disk. Subsequent runs in the same PowerShell session
+reuse it until shortly before expiration.
+
+Show the returned table schema:
+
+```powershell
+.\A365\query-defender.ps1 -IncludeSchema
+```
+
+Run an ad hoc query:
+
+```powershell
+.\A365\query-defender.ps1 `
+  -Query 'CloudAppEvents | where Timestamp > ago(1h) | take 10'
 ```
 
 ## References

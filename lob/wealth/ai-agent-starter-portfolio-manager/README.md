@@ -3,7 +3,8 @@
 An AI-powered portfolio event ledger API built with **Microsoft Agent Framework**, **FastAPI**, and **Azure PostgreSQL** — deployed to **Azure Container Apps** and exposed as an **MCP server** via **Azure API Management**.
 
 Microsoft Agent 365 identity, observability, governance, security, and
-operational planning is documented in [A365/readme.md](./A365/readme.md).
+operational planning is documented in
+[A365/readme.md](../../../A365/readme.md).
 
 ---
 
@@ -278,7 +279,7 @@ The API forwards that user token to APIM alongside its server-held subscription
 key; the API container does not perform the interactive sign-in.
 
 Agent 365 observability is disabled by default. After completing the
-[Agent 365 provisioning runbook](./A365/provisioning_runbook.md), place the
+[Agent 365 provisioning runbook](../../../A365/provisioning_runbook.md), place the
 blueprint client secret in the git-ignored `.env` as
 `A365_BLUEPRINT_CLIENT_SECRET`; never add it to `env.sample`. The integration
 uses an app-only two-step Agent ID exchange and does not reuse the interactive
