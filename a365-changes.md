@@ -528,7 +528,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-12 13:25 EDT - Publish LOB and Agent 365 reorganization
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Commit and push the approved LOB structure, Agent 365
@@ -538,12 +538,21 @@ connection strings, or sensitive portfolio content.
   and `startchat.bat`; exclude unrelated infrastructure mapping and copied
   APIM policy files; validate the staged change; commit to `main`; and push to
   `origin/main`.
-- **Result:** Pending.
-- **Validation:** Confirm staged scope, run Git whitespace checks and a
-  credential-pattern scan, verify the commit, and confirm the remote push.
+- **Result:** Published commit `f0c9a3e` with the approved LOB and Agent 365
+  scope. The selected moved tree also contained a generated MCP test-output
+  artifact with sample portfolio results and a service endpoint. It contained
+  no credential, but it was removed immediately and `output/` was added to the
+  project ignore rules in cleanup commit `147185a`. Unrelated
+  `infra/mapping-storage.json` and
+  `peering/modules/apim-foundry-policy copy.xml` remain uncommitted.
+- **Validation:** Confirmed the staged scope before commit, `git diff
+  --cached --check` passed, a staged-addition credential-pattern scan found no
+  matches, local and remote `main` were synchronized before publication, and
+  both commits were accepted by `origin/main`. Tests were not run because the
+  earlier test request was declined.
 - **Rollback:** Revert the published commit with a new revert commit; do not
   rewrite shared branch history.
-- **Follow-up:** Pending.
+- **Follow-up:** Run the relocated portfolio-manager tests when authorized.
 
 ## 2026-10-12 10:05 EDT - Assess LOB-specific blueprint guidance
 
