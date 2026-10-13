@@ -24,6 +24,7 @@ The implementation plan is in
 | [Implementation plan](./implementation_plan.md) | Phases, decisions, tests, rollout, and definition of done |
 | [Blueprints](./blueprints.md) | Beginner and architecture guide for Agent ID blueprints |
 | [LOB blueprint guidance](./lob_bluprints.md) | Enterprise taxonomy, boundary rules, and profiles for Contoso Bank lines of business |
+| [Agent 365 CLI guide](./agent365_cli.md) | Installation, authentication, setup, advanced usage, diagnostics, automation, and cleanup |
 | [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
 | [Verification process](./verification_process.md) | ARRANGE, ACT, ASSERT verification for identity, telemetry, privacy, and portal arrival |
 | [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |

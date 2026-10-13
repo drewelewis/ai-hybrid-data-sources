@@ -1,0 +1,230 @@
+<policies>
+  <inbound>
+    <base />
+    <cors allow-credentials="false">
+      <allowed-origins>__CORS_ORIGINS__</allowed-origins>
+      <allowed-methods>
+        <method>OPTIONS</method>
+        <method>POST</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>Authorization</header>
+        <header>Content-Type</header>
+      </allowed-headers>
+    </cors>
+    __VALIDATE_JWT__
+    <cache-lookup-value key="llmmgmt-mapping" default-value="" variable-name="llmmgmt-mapping" caching-type="internal" />
+    <choose>
+      <when condition="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;)))">
+        <send-request mode="new" timeout="20" response-variable-name="llmmgmt-mapping-response" ignore-error="true">
+          <set-url>__MAPPING_BLOB_URL__</set-url>
+          <set-method>GET</set-method>
+          <set-header name="x-ms-version" exists-action="override">
+            <value>2019-07-07</value>
+          </set-header>
+          <authentication-managed-identity resource="https://storage.azure.com/" />
+        </send-request>
+        <choose>
+          <when condition="@{
+            var response = context.Variables.GetValueOrDefault&lt;IResponse&gt;(&quot;llmmgmt-mapping-response&quot;);
+            return response != null &amp;&amp; response.StatusCode == 200;
+          }">
+            <set-variable name="llmmgmt-mapping" value="@{
+              var response = (IResponse)context.Variables[&quot;llmmgmt-mapping-response&quot;];
+              var source = JObject.Parse(response.Body.As&lt;string&gt;());
+              var result = new JObject();
+
+              foreach (var product in source)
+              {
+                var productConfig = (JObject)product.Value.DeepClone();
+                var deployments = productConfig[&quot;deployments&quot;] as JArray;
+                productConfig.Remove(&quot;deployments&quot;);
+                var models = new JArray();
+
+                if (deployments != null)
+                {
+                  foreach (JObject deployment in deployments)
+                  {
+                    var model = (JObject)productConfig.DeepClone();
+                    model.Merge(deployment);
+                    model[&quot;model&quot;] = deployment.Value&lt;string&gt;(&quot;name&quot;);
+                    model[&quot;deploymentName&quot;] = deployment.Value&lt;string&gt;(&quot;deploymentName&quot;)
+                      ?? deployment.Value&lt;string&gt;(&quot;name&quot;);
+                    models.Add(model);
+                  }
+                }
+
+                result[&quot;openai-&quot; + product.Key] = models;
+              }
+
+              return result.ToString(Newtonsoft.Json.Formatting.None);
+            }" />
+            <cache-store-value key="llmmgmt-mapping" value="@((string)context.Variables[&quot;llmmgmt-mapping&quot;])" duration="3600" caching-type="internal" />
+          </when>
+        </choose>
+      </when>
+    </choose>
+    <choose>
+      <when condition="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;)))">
+        <return-response>
+          <set-status code="503" reason="Model mapping unavailable" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error":{"code":"503","message":"The model mapping is temporarily unavailable.","source":"LLMMGMT"}}</set-body>
+        </return-response>
+      </when>
+    </choose>
+    <set-variable name="llmmgmt-model" value="@(context.Request.MatchedParameters.GetValueOrDefault(&quot;deployment-id&quot;, &quot;&quot;))" />
+    <set-variable name="llmmgmt-config" value="@{
+      var mappingJson = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-mapping&quot;);
+      var mapping = string.IsNullOrWhiteSpace(mappingJson) ? null : JObject.Parse(mappingJson);
+      var modelName = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;);
+
+      if (mapping == null || string.IsNullOrWhiteSpace(modelName) || context.Product?.Id == null)
+      {
+        return null;
+      }
+
+      if (!mapping.TryGetValue(context.Product.Id, StringComparison.OrdinalIgnoreCase, out var productToken)
+        || !(productToken is JArray productModels))
+      {
+        return null;
+      }
+
+      return productModels
+        .Cast&lt;JObject&gt;()
+        .FirstOrDefault(candidate =&gt;
+          string.Equals(candidate.Value&lt;string&gt;(&quot;model&quot;), modelName, StringComparison.OrdinalIgnoreCase));
+    }" />
+    <choose>
+      <when condition="@(context.Variables.GetValueOrDefault&lt;JObject&gt;(&quot;llmmgmt-config&quot;) != null)">
+        <set-backend-service backend-id="@{
+          var config = (JObject)context.Variables[&quot;llmmgmt-config&quot;];
+          return config.TryGetValue(&quot;backendId&quot;, StringComparison.OrdinalIgnoreCase, out var backendId)
+            ? backendId.Value&lt;string&gt;()
+            : string.Empty;
+        }" />
+        <llm-emit-token-metric namespace="AI-Gateway">
+          <dimension name="Product ID" />
+          <dimension name="Subscription ID" />
+          <dimension name="Backend ID" />
+          <dimension name="Deployment" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;))" />
+        </llm-emit-token-metric>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxCallsPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuMaxCalls) &amp;&amp; skuMaxCalls.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="skuGlobalMaxCallsPerMinute" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;])[&quot;skuGlobalMaxCallsPerMinute&quot;].Value&lt;int&gt;())" />
+            <rate-limit-by-key calls="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;])[&quot;skuGlobalMaxCallsPerMinute&quot;].Value&lt;int&gt;())" renewal-period="60" counter-key="@(context.Subscription.Id + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;&quot;))" remaining-calls-variable-name="llmmgmt-remaining-calls" retry-after-header-name="x-llmmgmt-retry-after" remaining-calls-header-name="x-llmmgmt-ratelimit-remaining-calls" retry-after-variable-name="llmmgmt-retry-after" />
+          </when>
+          <otherwise>
+            <set-variable name="skuGlobalMaxCallsPerMinute" value="@((int)20000)" />
+            <trace source="llmmgmt-ratelimit-fallback" severity="information">
+              <message>@($"Rate limit fallback (20000 calls/min) applied for subscription: {context.Subscription.Id}, model: {context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;unknown&quot;)}")</message>
+            </trace>
+            <rate-limit-by-key calls="20000" renewal-period="60" counter-key="@(context.Subscription.Id + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;&quot;))" remaining-calls-variable-name="llmmgmt-remaining-calls" retry-after-header-name="x-llmmgmt-retry-after" remaining-calls-header-name="x-llmmgmt-ratelimit-remaining-calls" retry-after-variable-name="llmmgmt-retry-after" />
+          </otherwise>
+        </choose>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) &amp;&amp; maxTokensPerMinute.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="maxTotalTokens" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" />
+            <choose>
+              <when condition="@(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;).Contains(&quot;multipart/form-data&quot;))">
+                <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+              </when>
+              <otherwise>
+                <choose>
+                  <when condition="@(context.Request.Method == &quot;POST&quot; &amp;&amp; context.Request.Body.As&lt;JObject&gt;(preserveContent: true).ContainsKey(&quot;stream&quot;) ? (bool)context.Request.Body.As&lt;JObject&gt;(preserveContent: true)[&quot;stream&quot;] == true : false)">
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="true" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+                  </when>
+                  <otherwise>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id + context.Variables[&quot;llmmgmt-model&quot;])" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;maxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var maxTokensPerMinute) ? maxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-model-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-model-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-model-ratelimit-consumed" tokens-consumed-variable-name="consumedModeltokens" />
+                  </otherwise>
+                </choose>
+              </otherwise>
+            </choose>
+          </when>
+        </choose>
+        <choose>
+          <when condition="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) &amp;&amp; skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() &gt; 0)">
+            <set-variable name="skuMaxTotalTokens" value="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" />
+            <choose>
+              <when condition="@(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;).Contains(&quot;multipart/form-data&quot;))">
+                <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+              </when>
+              <otherwise>
+                <choose>
+                  <when condition="@(context.Request.Method == &quot;POST&quot; &amp;&amp; context.Request.Body.As&lt;JObject&gt;(preserveContent: true).ContainsKey(&quot;stream&quot;) ? (bool)context.Request.Body.As&lt;JObject&gt;(preserveContent: true)[&quot;stream&quot;] == true : false)">
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="true" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+                  </when>
+                  <otherwise>
+                    <azure-openai-token-limit counter-key="@(context.Subscription.Id)" tokens-per-minute="@(((JObject)context.Variables[&quot;llmmgmt-config&quot;]).TryGetValue(&quot;skuGlobalMaxTokensPerMinute&quot;, StringComparison.OrdinalIgnoreCase, out var skuGlobalMaxTokensPerMinute) ? skuGlobalMaxTokensPerMinute.Value&lt;int&gt;() : 0)" estimate-prompt-tokens="false" remaining-tokens-header-name="x-llmmgmt-sku-ratelimit-remaining" remaining-tokens-variable-name="x-llmmgmt-sku-ratelimit-remaining" tokens-consumed-header-name="x-llmmgmt-sku-ratelimit-consumed" tokens-consumed-variable-name="consumedSkutokens" />
+                  </otherwise>
+                </choose>
+              </otherwise>
+            </choose>
+          </when>
+        </choose>
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com/" />
+      </when>
+      <otherwise>
+        <return-response>
+          <set-status code="404" reason="Deployment Not Found" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>@{
+            var model = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, &quot;unknown&quot;);
+            return new JObject(
+              new JProperty(&quot;error&quot;, new JObject(
+                new JProperty(&quot;code&quot;, &quot;404&quot;),
+                new JProperty(&quot;message&quot;, $&quot;Deployment '{model}' is not enabled for this product.&quot;),
+                new JProperty(&quot;source&quot;, &quot;LLMMGMT&quot;)
+              ))
+            ).ToString(Newtonsoft.Json.Formatting.None);
+          }</set-body>
+        </return-response>
+      </otherwise>
+    </choose>
+  </inbound>
+  <backend>
+    <retry condition="@(context.Response.StatusCode == 408 || context.Response.StatusCode == 429 || context.Response.StatusCode &gt;= 500)" count="3" interval="3" first-fast-retry="false">
+      <forward-request buffer-request-body="true" buffer-response="false" timeout="840" />
+    </retry>
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="x-llmmgmt-model-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-sku-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit-calls" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-product-ratelimit-consumed" exists-action="override">
+      <value>@(context.Response.Headers.GetValueOrDefault(&quot;x-llmmgmt-sku-ratelimit-consumed&quot;, &quot;&quot;))</value>
+    </set-header>
+    <set-header name="x-llmmgmt-product-ratelimit-remaining" exists-action="override">
+      <value>@(context.Response.Headers.GetValueOrDefault(&quot;x-llmmgmt-sku-ratelimit-remaining&quot;, &quot;&quot;))</value>
+    </set-header>
+  </outbound>
+  <on-error>
+    <base />
+    <set-header name="x-llmmgmt-model-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;maxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-sku-ratelimit-limit" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuMaxTotalTokens&quot;, 0).ToString())</value>
+    </set-header>
+    <set-header name="x-llmmgmt-ratelimit-limit-calls" exists-action="override">
+      <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;skuGlobalMaxCallsPerMinute&quot;, 0).ToString())</value>
+    </set-header>
+  </on-error>
+</policies>

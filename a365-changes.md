@@ -1757,3 +1757,278 @@ connection strings, or sensitive portfolio content.
   `lob/wealth/ai-agent-starter-portfolio-manager/A365/` and restore updated
   references.
 - **Follow-up:** None.
+
+## 2026-10-12 15:17 EDT - Summarize Trading Platform Agent onboarding
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Explain how Microsoft Agent 365 was added to the existing
+  Trading Platform Agent.
+- **Change:** Performed a read-only review of the Agent 365 change ledger and
+  the current identity, runtime observability, API, configuration, and
+  validation code. No tenant, Azure, runtime, identity, permission, license,
+  dependency, or application behavior was changed.
+- **Result:** Confirmed that the existing Python and Docker agent was preserved
+  and onboarded through the standard existing-agent path: Agent Identity
+  Blueprint and BlueprintPrincipal provisioning, sponsored Agent Identity and
+  Registry registration, app-only S2S token exchange, Microsoft OpenTelemetry
+  initialization, registered identity attribution on the `ChatAgent`, one
+  root `InvokeAgent` scope per chat request, pseudonymous user attribution,
+  feature-gated content capture, health reporting, and graceful flushing.
+  Microsoft 365 Agents Toolkit, hosted-agent conversion, Work IQ, messaging
+  endpoints, and broad Microsoft 365 data permissions were not required.
+- **Validation:** Correlated the historical provisioning and telemetry entries
+  with the current `agents/trading_platform_agent.py`,
+  `observability/a365.py`, `api/main.py`, `api/user_identity.py`, runtime
+  configuration, dependency pin, and documented live exporter acceptance.
+- **Rollback:** Not applicable; read-only investigation.
+- **Follow-up:** None.
+
+## 2026-10-12 15:21 EDT - Document existing-agent onboarding
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Add the implemented Trading Platform Agent onboarding details to
+  the shared Agent 365 onboarding guide.
+- **Change:** Populate `A365/onboarding_agents.md` with the selected
+  existing-agent architecture, tenant identity and Registry sequence, runtime
+  S2S authentication and observability integration, privacy controls,
+  configuration, validation evidence, exclusions, and rollback guidance. Link
+  to the detailed provisioning and observability runbooks rather than copying
+  secret-bearing or environment-specific operator data.
+- **Result:** Populated `A365/onboarding_agents.md` with the implemented
+  standard existing-agent architecture and reusable onboarding sequence. The
+  guide now covers identity hierarchy and sponsorship, Registry registration,
+  protected configuration, the two-step app-only token exchange, registered
+  runtime ID binding, Microsoft OpenTelemetry initialization, root
+  `InvokeAgent` scopes, pseudonymous user attribution, content-policy choices,
+  validation boundaries, explicitly excluded capabilities, reuse guidance,
+  and rollback. It links to the authoritative provisioning, observability, and
+  verification runbooks and contains no secret or environment-specific
+  credential values.
+- **Validation:** `git diff --check` passed for the onboarding guide and
+  ledger. Confirmed that every referenced repository document and
+  implementation path exists.
+- **Rollback:** Restore `A365/onboarding_agents.md` to its previous empty
+  state.
+- **Follow-up:** None.
+
+## 2026-10-12 15:23 EDT - Document Agent 365 CLI usage
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Provide a complete getting-started and in-depth operating guide
+  for the Agent 365 CLI.
+- **Change:** Populate `A365/agent365_cli.md` with current installation,
+  authentication, roles, configuration modes, setup workflows, command
+  families, generated-artifact handling, diagnostics, automation, cloud,
+  security, troubleshooting, cleanup, and repository-specific guidance.
+  Reconcile current Microsoft Learn references with the CLI behavior validated
+  during Trading Platform Agent onboarding. Do not run the CLI or change
+  tenant, identity, permission, Azure, license, or runtime state.
+- **Result:** Populated `A365/agent365_cli.md` with a comprehensive guide to
+  CLI purpose and safety, prerequisites and roles, installation and updates,
+  Microsoft-managed and tenant-owned client authentication, first-use checks,
+  config-free and file-based setup, generated-file security, granular and
+  full setup, Entra inspection, MCP development, Microsoft 365 publishing,
+  redacted diagnostic logs, granular and full cleanup, CI/CD, government
+  clouds, troubleshooting, support escalation, and the repository's validated
+  registration-only pattern. Added the guide to the `A365/readme.md`
+  documentation map. No CLI command that authenticates or changes tenant,
+  Azure, identity, permission, license, or runtime state was run.
+- **Validation:** Reconciled the guide with current Microsoft Learn command
+  references and the installed Agent 365 CLI `1.1.226` help for top-level,
+  setup, query-entra, logs, and cleanup commands. `git diff --check` passed,
+  all linked local documents exist, and the A365 documentation map contains
+  the new guide.
+- **Rollback:** Restore `A365/agent365_cli.md` to its previous empty state.
+- **Follow-up:** Recheck command syntax and role requirements when upgrading
+  the CLI because Agent 365 remains version-sensitive.
+
+## 2026-10-12 15:55 EDT - Diagnose model request timeouts
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Runtime | Azure
+- **Requested by:** User
+- **Purpose:** Determine why the local Trading Platform Agent returned HTTP 500
+  after Azure OpenAI model requests timed out.
+- **Change:** Performed read-only checks of the active Windows API process,
+  local API and Agent 365 health, Docker state, sanitized model endpoint
+  configuration, DNS, TCP connectivity, local routing, Azure VPN connection,
+  APIM networking state, private endpoint address, VPN traffic counters, and
+  IPsec traffic selectors. No process, container, tunnel, tenant, Azure,
+  identity, permission, license, secret, or configuration was changed.
+- **Result:** The Windows-hosted API on port 8989 is healthy, its database is
+  connected, and Agent 365 observability is enabled, token-ready, and has no
+  reported error. The Docker API container is stopped and is not serving the
+  request. The configured APIM hostname resolves to approved private endpoint
+  `10.100.2.4`, but TCP 443 and an eight-second HTTPS probe time out. Azure
+  reports the VPN connection as `Connected`, APIM provisioning as
+  `Succeeded`, public access as disabled, and the private endpoint as
+  approved. VPN ingress and egress counters did not change during the failed
+  probe, proving the packets did not reach the Azure VPN gateway. Azure
+  selectors correctly advertise on-premises `192.168.50.0/24` and use the
+  expected AES256/SHA256/DHGroup14/no-PFS policy. The model timeout is
+  downstream of an on-premises IPsec child-SA or forwarding-path failure, not
+  Agent 365, the Python API, APIM provisioning, or model service health.
+- **Validation:** `GET /health` returned healthy with Agent 365 `ready`;
+  `Resolve-DnsName` returned `10.100.2.4`; `Test-NetConnection` and `curl`
+  could not connect to port 443; the controlled request produced zero-byte
+  Azure VPN ingress and egress deltas; Azure Resource Health reported the
+  model resource available.
+- **Rollback:** Not applicable; read-only investigation.
+- **Follow-up:** The user approved restarting the OpenWrt 25.x strongSwan
+  service. Two noninteractive SSH attempts failed because the router requires
+  password authentication and this session has no router credential or SSH
+  key. A final read-only probe still timed out with zero Azure VPN counter
+  movement. A 16:36 EDT recheck confirmed that the API, database, agent, and
+  Agent 365 remained healthy and ready, but private APIM TCP 443 still timed
+  out after eight seconds without connecting. In the user's authenticated
+  router console, run
+  `/etc/init.d/swanctl restart`, `swanctl --load-all`, and
+  `swanctl --list-sas`; then verify an installed child SA for
+  `192.168.50.0/24 === 10.100.0.0/16` before repeating TCP and `/chat`
+  validation.
+
+## 2026-10-12 16:37 EDT - Remove conflicting P2S route
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Runtime
+- **Requested by:** User
+- **Purpose:** Restore the Trading Platform Agent's private APIM path through
+  the approved OpenWrt Site-to-Site VPN.
+- **Change:** Remove the active `10.0.0.0/8` route from Windows interface 48,
+  `MSFT-AzVPN-Manual`, because it captures traffic for APIM private endpoint
+  `10.100.2.4` and bypasses the OpenWrt S2S gateway. Do not modify the Azure
+  VPN gateway, APIM, OpenWrt configuration, tenant objects, permissions,
+  identities, licenses, or application code.
+- **Result:** Used the user-shared authenticated OpenWrt LuCI session to
+  restart only the enabled `swanctl` service. Router logs confirmed successful
+  PSK authentication, an established IKE SA, and an established CHILD_SA for
+  `192.168.50.0/24 === 10.100.0.0/16`. Traffic still failed because Windows
+  selected disconnected point-to-site interface `MSFT-AzVPN-Manual` with
+  source `100.96.192.125` for both private APIM and Azure management traffic.
+  Disconnected the P2S session, then removed all stale IPv4 and IPv6 routes
+  owned by interface 48 with an elevated, session-only script. The temporary
+  script was deleted. Route selection now uses Wi-Fi address
+  `192.168.50.176` and OpenWrt gateway `192.168.50.1`. No Azure, tenant,
+  application, permission, identity, license, or source-code state changed.
+- **Validation:** Private APIM returned the expected unauthenticated root HTTP
+  404 from `10.100.2.4` with a 54 ms connection time. Azure reported the S2S
+  VPN `Connected`. Azure CLI token acquisition succeeded after the stale P2S
+  routes were removed. An authenticated end-to-end `POST /chat` returned HTTP
+  200 from `TradingPlatformAgent` with the exact response
+  `connectivity restored`.
+- **Rollback:** Restore the route with
+  `New-NetRoute -InterfaceIndex 48 -DestinationPrefix 10.0.0.0/8 -NextHop
+  0.0.0.0 -RouteMetric 256` or reconnect the `MSFT-AzVPN-Manual` P2S client.
+- **Follow-up:** Keep `MSFT-AzVPN-Manual` disconnected while using the on-prem
+  S2S path. If it is reconnected, review its advertised routes so it does not
+  recapture `10.100.0.0/16` or Azure public management endpoints.
+
+## 2026-10-13 16:47 EDT - Grant Purview insider-risk alert access
+
+- **Status:** Succeeded
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Allow the current operator to view Insider Risk Management
+  alerts surfaced from Purview DSPM agent activity.
+- **Change:** Added `Jim Plunkett`
+  (`admin@MngEnvMCAP623732.onmicrosoft.com`) to the built-in Microsoft Purview
+  `Insider Risk Management Analysts` role group at organization scope with no
+  expiration. No other role groups, administrative units, policies, licenses,
+  identities, or application settings were changed.
+- **Result:** The role group member count changed from zero to one.
+- **Validation:** Microsoft Purview **My permissions** listed
+  `Insider Risk Management Analysts` for the signed-in user.
+- **Rollback:** Remove `Jim Plunkett` from the `Insider Risk Management
+  Analysts` role group in Microsoft Purview **Settings > Roles and scopes >
+  Role groups**.
+- **Follow-up:** Allow up to 30 minutes for all Purview services to recognize
+  the assignment.
+
+## 2026-10-13 16:57 EDT - Trace Trading Platform Agent into Purview
+
+- **Status:** Succeeded
+- **Scope:** Tenant | Runtime
+- **Requested by:** User
+- **Purpose:** Determine why recent Trading Platform Agent tests were not
+  visible in Purview dashboards.
+- **Change:** Performed read-only inspection of DSPM AI observability,
+  Activity Explorer, effective role assignments, and Microsoft Purview
+  documentation. No tenant, policy, identity, license, runtime, or application
+  state changed.
+- **Result:** Activity Explorer contains recent `AI Interaction` /
+  `Invoke Agent` records from `Local-cli`, including an October 13, 2026
+  20:23 UTC event attributed to `TradingPlatformAgent`. The record reports
+  workload `Agent365`, agent participant ID
+  `7f2edbcc-8375-4d1d-a430-93c14e8db94e`, and instance ID
+  `341ff526-fa67-4487-a028-5d61dd6e5a92`, but reports user `N/A`, an all-zero
+  Agent ID, and `Related activity not found`. AI observability reports 356
+  cloud agents, zero local agents, zero AI apps, and zero risky interactions.
+  The classic DSPM policy list contains zero policies.
+- **Validation:** Opened the 20:23 UTC Activity Explorer record and verified
+  its activity, location, workload, participant, and correlation fields.
+  Microsoft documentation confirms custom enterprise AI app analytics require
+  the KYD collection policy and that reports require roughly 24 hours after
+  policy activation.
+- **Rollback:** Not applicable; read-only investigation.
+- **Follow-up:** Enable the documented custom-AI policies before expecting
+  sensitive/risky analytics or alerts: `Secure interactions from enterprise
+  apps (preview)`, `Control Unethical Behavior in AI`, and `Detect risky AI
+  usage`. Separately correct runtime identity/correlation so exported events
+  contain a real user or pseudonymous user, a nonzero Agent ID, and related
+  interaction activity.
+
+## 2026-10-13 17:04 EDT - Enable detect-only Purview AI policies
+
+- **Status:** Partially succeeded
+- **Scope:** Tenant
+- **Requested by:** User
+- **Purpose:** Collect enterprise AI prompt and response activity and detect
+  potentially unethical interactions without blocking users.
+- **Change:** Enabled the Purview recommendations `Secure interactions from
+  enterprise AI apps` and `Detect unethical behavior in AI apps` after the
+  user separately approved the disclosed pay-as-you-go billing for each
+  policy and the tenant-wide scope and reviewer assignment for Communication
+  Compliance. Retained the existing `Risky AI usage quick policy -
+  10/13/2026`. No blocking DLP actions or Defender custom detection were
+  created because `CloudAppEvents` returned zero rows.
+- **Result:** Created `DSPM for AI - Capture interactions for enterprise AI
+  apps` in audit mode with pay-as-you-go billing; its status is `On`. Created
+  tenant-wide Communication Compliance policy `DSPM for AI - Unethical
+  behavior in AI apps`, with `Jim Plunkett` as reviewer; its status is
+  `Activating`. The existing Insider Risk Management policy remains `On`.
+- **Validation:** The DSPM for AI policy list contains three policies:
+  enterprise interaction capture (`On`), risky AI usage (`On`), and unethical
+  behavior detection (`Activating`). Defender Advanced Hunting successfully
+  resolved `CloudAppEvents | take 1` but returned zero rows for the last seven
+  days, so no nonfunctional custom detection was created.
+- **Rollback:** Disable or delete the two newly created policies from their
+  corresponding Purview solution areas.
+- **Follow-up:** Wait up to one hour for Communication Compliance activation
+  and at least 24 hours for DSPM reports. Then generate synthetic test
+  interactions, verify Purview detections, and query Defender
+  `CloudAppEvents` before creating a custom detection rule. If the
+  Communication Compliance policy reaches `On`, update this entry to
+  `Succeeded`.
+
+## 2026-10-13 18:00 EDT - Publish current repository changes
+
+- **Status:** Planned
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Publish the complete current worktree to the GitHub `main`
+  branch.
+- **Change:** Stage, commit, and push all current tracked and untracked
+  changes, including Agent 365 documentation, the Agent 365 change ledger,
+  the compiled mapping-storage template, and the APIM policy copy.
+- **Result:** Pending.
+- **Validation:** Verify the commit exists locally, the push succeeds, and
+  local `main` matches `origin/main`.
+- **Rollback:** Revert the published commit with a new commit and push the
+  revert; do not rewrite shared branch history.
+- **Follow-up:** None.
