@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="title desc">
+  <title id="title">Agent ID blueprint object relationships</title>
+  <desc id="desc">One blueprint has one BlueprintPrincipal and creates one or more separately sponsored agent identities.</desc>
+  <defs>
+    <marker id="blueArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#6c8ebf"/></marker>
+    <marker id="purpleArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#9673a6"/></marker>
+    <marker id="goldArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#d6b656"/></marker>
+    <style>
+      .box { stroke-width: 2; rx: 10; }
+      .heading { font: 700 18px Arial, sans-serif; fill: #2c3e50; }
+      .label { font: 700 14px Arial, sans-serif; text-anchor: middle; }
+      .detail { font: 12px Arial, sans-serif; text-anchor: middle; }
+      .edgeLabel { font: 12px Arial, sans-serif; fill: #34495e; text-anchor: middle; }
+      .edge { fill: none; stroke-width: 2; }
+    </style>
+  </defs>
+  <rect width="1100" height="600" fill="#f7f7f7"/>
+  <rect x="40" y="40" width="1020" height="500" rx="14" fill="#f5f5f5" stroke="#7f8c8d" stroke-width="2"/>
+  <text x="65" y="72" class="heading">Microsoft Entra tenant</text>
+
+  <rect class="box" x="395" y="95" width="310" height="100" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="550" y="123" class="label" fill="#1f4e79">Agent Identity Blueprint</text>
+  <text x="550" y="149" class="detail" fill="#1f4e79">Agent-family definition</text>
+  <text x="550" y="171" class="detail" fill="#1f4e79">Credentials and shared permission declarations</text>
+
+  <rect class="box" x="110" y="245" width="250" height="80" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="235" y="277" class="label" fill="#4a235a">BlueprintPrincipal</text>
+  <text x="235" y="301" class="detail" fill="#4a235a">Tenant representation of the blueprint</text>
+
+  <rect class="box" x="740" y="245" width="250" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="865" y="277" class="label" fill="#5f4b00">Human sponsors</text>
+  <text x="865" y="301" class="detail" fill="#5f4b00">Accountable for each agent identity</text>
+
+  <rect class="box" x="110" y="415" width="250" height="80" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="235" y="447" class="label" fill="#285c2d">Development Agent Identity</text>
+  <text x="235" y="471" class="detail" fill="#285c2d">One tenant-local instance</text>
+
+  <rect class="box" x="425" y="415" width="250" height="80" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="550" y="447" class="label" fill="#285c2d">Test Agent Identity</text>
+  <text x="550" y="471" class="detail" fill="#285c2d">One tenant-local instance</text>
+
+  <rect class="box" x="740" y="415" width="250" height="80" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="865" y="447" class="label" fill="#285c2d">Production Agent Identity</text>
+  <text x="865" y="471" class="detail" fill="#285c2d">One tenant-local instance</text>
+
+  <path class="edge" d="M460 195 V225 H235 V245" stroke="#9673a6" marker-end="url(#purpleArrow)"/>
+  <text x="340" y="218" class="edgeLabel">represented by</text>
+  <path class="edge" d="M485 195 V365 H235 V415" stroke="#6c8ebf" marker-end="url(#blueArrow)"/>
+  <path class="edge" d="M550 195 V415" stroke="#6c8ebf" marker-end="url(#blueArrow)"/>
+  <path class="edge" d="M615 195 V365 H865 V415" stroke="#6c8ebf" marker-end="url(#blueArrow)"/>
+  <text x="550" y="355" class="edgeLabel">creates one or many</text>
+  <path class="edge" d="M820 325 V385 H300 V415" stroke="#d6b656" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+  <path class="edge" d="M865 325 V385 H550 V415" stroke="#d6b656" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+  <path class="edge" d="M910 325 V415" stroke="#d6b656" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+  <text x="760" y="378" class="edgeLabel">sponsors each identity</text>
+</svg>

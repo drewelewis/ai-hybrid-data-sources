@@ -2130,3 +2130,452 @@ connection strings, or sensitive portfolio content.
 - **Rollback:** Revert the published commit with a new commit and push the
   revert; do not rewrite shared branch history.
 - **Follow-up:** Restart the local API before runtime validation.
+
+## 2026-10-14 10:30 EDT - Document LOB application wiring
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Provide a concrete file-by-file guide showing how a self-hosted
+  LOB application is wired to Agent 365 identity, observability, Purview, and
+  Defender.
+- **Change:** Add an LOB application wiring guide under `A365`, link it from
+  the documentation map and existing-agent onboarding guide, and document the
+  Trading Platform Agent as the reference implementation.
+- **Result:** Created `A365/lob_app_wiring.md` and linked it from
+  `A365/readme.md` and `A365/onboarding_agents.md`.
+- **Validation:** Verified that every local Markdown link in the new guide and
+  both updated source documents resolves. `git diff --check` completed
+  successfully.
+- **Rollback:** Remove the new guide and its documentation links.
+- **Follow-up:** None.
+
+## 2026-10-14 10:31 EDT - Assess foundational A365 documentation
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Determine whether the `A365` documentation set is missing
+  foundational material needed to operate and govern the integration.
+- **Change:** Read-only review of the documentation map and the identity,
+  provisioning, runtime wiring, observability, verification, security,
+  governance, operations, and troubleshooting guides.
+- **Result:** The core integration is well covered. Recommended additions are
+  a Purview and Defender policy operations guide, an environment and release
+  lifecycle guide, a service-level monitoring and escalation guide, and a
+  tenant-specific data retention and compliance decision record. The review
+  also found conflicting content-capture guidance: most documents prescribe
+  metadata-only export while `configuration_reference.md` and
+  `observability_reference.md` describe content capture as the default and
+  intentional behavior.
+- **Validation:** Compared the `A365/readme.md` documentation map with all
+  Markdown document headings and searched the collection for policy
+  operations, production promotion, service levels, escalation, recovery,
+  retention, and content-recording requirements.
+- **Rollback:** Remove this assessment entry; no tenant, Azure, identity, or
+  runtime state changed.
+- **Follow-up:** Resolve the content-capture source of truth before adding the
+  recommended foundational guides.
+
+## 2026-10-14 10:33 EDT - Improve A365 README flow
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make the `A365` documentation landing page easier to navigate
+  from architecture and current state through implementation, verification,
+  operations, and governance.
+- **Change:** Reorganize `A365/readme.md`, group its documentation map by
+  lifecycle, and correct stale or ambiguous status language without changing
+  runtime or tenant behavior.
+- **Result:** Added a task-oriented start path, grouped the documentation map
+  into architecture, implementation, and operations phases, separated verified
+  Purview ingestion from pending policy and Defender outcomes, replaced stale
+  planned/sidecar language, and made the unresolved telemetry content mode
+  explicit.
+- **Validation:** Every local README link resolves, `git diff --check`
+  completed successfully, and the heading sequence now progresses from
+  overview and navigation through status, architecture, capabilities, data
+  policy, prerequisites, configuration, operations, and validation.
+- **Rollback:** Revert the README reorganization and this ledger entry.
+- **Follow-up:** Resolve and document the approved default for
+  `A365_RECORD_CONTENT` across the runtime and all A365 guides.
+
+## 2026-10-14 10:38 EDT - Audit A365 documentation consistency
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Recheck the complete `A365` folder for broken navigation,
+  stale architecture, inaccurate operational instructions, conflicting
+  privacy requirements, and helper-script defects.
+- **Change:** Read-only comparison of all 15 Markdown documents and the
+  Defender query helper against the implemented Agent 365 runtime,
+  configuration sample, and known tenant validation results.
+- **Result:** Local links, Markdown heading structure, and PowerShell syntax
+  passed. Material findings were conflicting full-content versus metadata-only
+  requirements, obsolete sidecar instructions despite a direct `fmi_path`
+  runtime, a pre-implementation plan presented as current state, stale
+  ingestion timing and Defender table status, a misleading metadata-only
+  runtime log message, one malformed authorization diagram label, and the
+  misspelled `lob_bluprints.md` filename.
+- **Validation:** Checked every local Markdown link target, verified one H1
+  and valid heading progression per document, parsed `query-defender.ps1`
+  with the PowerShell AST parser, and compared settings and token acquisition
+  claims with `observability/a365.py` and `env.sample`.
+- **Rollback:** Remove this assessment entry; no tenant, Azure, identity,
+  runtime, or policy state changed.
+- **Follow-up:** Resolve content-capture intent first, then update the stale
+  sidecar, implementation-state, verification, and naming documentation.
+
+## 2026-10-14 10:42 EDT - Correct A365 runtime and documentation drift
+
+- **Status:** Partially succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Resolve the issues found by the A365 consistency audit and make
+  runtime behavior, configuration, verification, and operational guidance
+  agree.
+- **Change:** Make telemetry metadata-only by default with an explicit
+  full-content nonproduction override, correct the runtime mode log and tests,
+  replace obsolete sidecar instructions with the implemented direct
+  `fmi_path` exchange, refresh implementation and verification status, repair
+  documentation naming and formatting, and update review dates.
+- **Result:** Made metadata-only telemetry the runtime and sample default,
+  retained explicit full-content capture for approved nonproduction policy
+  tests, made the initialization log report the effective mode, updated the
+  regression test, replaced application-specific sidecar instructions with
+  the deployed direct exchange, converted the implementation plan into a
+  current-state record, corrected ingestion timing and Defender status,
+  renamed `lob_bluprints.md` to `lob_blueprints.md`, updated links, and
+  refreshed review dates. The authorization-header diagram line could not be
+  changed or directly verified because the organization content filter masks
+  that line in file operations.
+- **Validation:** All 20 focused Agent 365 observability tests passed on
+  Python 3.14.7. All local links across 15 A365 Markdown files resolve,
+  Markdown heading structure is consistent, `query-defender.ps1` parses with
+  the PowerShell AST parser, and `git diff --check` completed successfully.
+- **Rollback:** Revert the runtime, tests, configuration sample,
+  documentation, filename, links, and this ledger entry.
+- **Follow-up:** Manually verify the masked authorization-header placeholder
+  in `A365/lob_app_wiring.md`; it should contain no real token or credential.
+
+## 2026-10-14 10:55 EDT - Assess blueprint diagram needs
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Determine whether the Agent ID blueprint guide would be clearer
+  with additional visual documentation.
+- **Change:** Read-only review of the guide's object model, authentication,
+  permissions, provisioning sequence, and existing ASCII architecture
+  examples.
+- **Result:** The guide already contains several focused ASCII diagrams, but
+  would benefit from one canonical object-and-trust diagram near the core
+  object model. A second token-flow sequence diagram would be useful but is
+  lower priority.
+- **Validation:** Compared existing diagram locations with the concepts spread
+  across the core object model, credentials, permissions, and provisioning
+  sections.
+- **Rollback:** Remove this assessment entry; no runtime, tenant, identity, or
+  documentation content changed.
+- **Follow-up:** Add the canonical diagram if approved, preferably without
+  duplicating the existing pattern examples.
+
+## 2026-10-14 10:57 EDT - Add Agent ID blueprint diagram
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Add a canonical visual model for Agent ID blueprint objects,
+  governance, credentials, permissions, child identities, runtimes, and
+  telemetry.
+- **Change:** Create an editable Draw.io source and matching SVG under the
+  repository-root `images` directory, then embed the SVG and link the editable
+  source from `A365/blueprints.md`.
+- **Result:** Added editable
+  `images/a365-blueprint-object-model.drawio` and matching
+  `images/a365-blueprint-object-model.svg`. Embedded the SVG in
+  `A365/blueprints.md` and linked the editable source. The diagram shows the
+  blueprint, BlueprintPrincipal, credential or federated trust, inheritable
+  permissions, token exchange, development and production Agent Identities,
+  runtimes, human governance, and Agent 365 telemetry.
+- **Validation:** Parsed the Draw.io model as valid XML with 29 cells, parsed
+  the SVG as valid 1400 by 850 XML, verified all A365 local links, visually
+  inspected the SVG source, and completed `git diff --check` successfully.
+- **Rollback:** Remove both image files and the blueprint-guide references,
+  then revert this ledger entry.
+- **Follow-up:** Open the `.drawio` file in diagrams.net or the VS Code Draw.io
+  extension for any desired visual refinements.
+
+## 2026-10-14 11:02 EDT - Simplify blueprint diagrams
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Replace the confusing all-in-one blueprint image with focused
+  visuals that teach one concept at a time.
+- **Change:** Simplify the existing object-model Draw.io and SVG to show only
+  object relationships, add a second Draw.io and SVG for the runtime token and
+  telemetry flow, and place each diagram beside the relevant guide section.
+- **Result:** Replaced the all-in-one image with a minimal object-relationship
+  diagram and added a separate five-step Agent ID token and Agent 365
+  telemetry sequence. Both diagrams have editable Draw.io sources and matching
+  SVGs under `images`, and each appears beside its relevant section in
+  `A365/blueprints.md`.
+- **Validation:** Parsed both Draw.io files and both SVGs successfully,
+  inspected both SVG structures, verified all A365 local links, and completed
+  `git diff --check` successfully.
+- **Rollback:** Restore the original object-model files, remove the token-flow
+  files and guide reference, and revert this ledger entry.
+- **Follow-up:** Review the simplified visuals in the rendered Markdown or
+  Draw.io editor and adjust only if a specific concept remains unclear.
+
+## 2026-10-14 11:05 EDT - Add diagram canvas backgrounds
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Ensure the Agent 365 diagrams render on an opaque, very light
+  gray canvas instead of a transparent background.
+- **Change:** Set the canvas background to `#f7f7f7` in both Draw.io sources
+  and both SVG images under `images`.
+- **Result:** Set an opaque `#f7f7f7` canvas background in both Draw.io models
+  and added full-canvas `#f7f7f7` background rectangles to both SVGs.
+- **Validation:** Parsed and checked all four XML files, confirmed the expected
+  background in each, and completed `git diff --check` successfully.
+- **Rollback:** Remove the Draw.io background attributes and SVG background
+  rectangles, then revert this ledger entry.
+- **Follow-up:** None.
+
+## 2026-10-14 11:08 EDT - Add LOB application wiring diagram
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make the LOB application wiring guide easier to understand with
+  a visual request, identity, telemetry, and downstream-governance flow.
+- **Change:** Create an editable Draw.io source and matching SVG under
+  `images`, embed the image in `A365/lob_app_wiring.md`, and retain the existing
+  text flow as a collapsible accessible alternative.
+- **Result:** Added editable `images/a365-lob-app-wiring.drawio` and matching
+  `images/a365-lob-app-wiring.svg` with user request, identity and correlation,
+  and telemetry and governance lanes. Embedded the SVG in
+  `A365/lob_app_wiring.md`, linked the Draw.io source, and retained the
+  original text flow as a collapsible alternative.
+- **Validation:** Parsed the Draw.io model as valid XML with 35 cells, parsed
+  the SVG successfully, confirmed the `#f7f7f7` background, verified all local
+  wiring-guide links, inspected the SVG structure, and completed
+  `git diff --check` successfully.
+- **Rollback:** Remove the two image files and restore the wiring guide's
+  original flow presentation, then revert this ledger entry.
+- **Follow-up:** Review the rendered image for readability at the target
+  documentation width.
+
+## 2026-10-14 11:14 EDT - Verify Agent 365 telemetry ownership
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Confirm which layer binds the registered Agent ID and which
+  layers create and export Agent 365 telemetry.
+- **Change:** Read-only trace of agent construction, the `/chat` request
+  lifecycle, invocation-scope creation, caller attribution, response and error
+  recording, exporter initialization, and automatic child instrumentation.
+- **Result:** `trading_platform_agent.py` passes the configured Agent ID to the
+  Agent Framework `ChatAgent`. `api/main.py` owns the per-request root scope
+  around `agent.run`, user validation, and success or error lifecycle.
+  `observability/a365.py` owns token exchange, Agent 365 scope details,
+  caller attribution, exporter configuration, and response recording, while
+  the instrumented framework emits model and tool child spans.
+- **Validation:** Verified the `ChatAgent(id=...)` construction, the
+  `a365_invoke_scope` wrapper around `request_agent.run`, the
+  `InvokeAgentScope.start` call, and `use_microsoft_opentelemetry`
+  configuration in the implementation.
+- **Rollback:** Remove this assessment entry; no runtime, tenant, identity, or
+  documentation behavior changed.
+- **Follow-up:** None.
+
+## 2026-10-14 11:15 EDT - Locate telemetry ownership documentation
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Identify where the Agent ID binding, API request scope,
+  observability implementation, and automatic child telemetry responsibilities
+  are documented.
+- **Change:** Read-only mapping of the LOB wiring, existing-agent onboarding,
+  and observability reference sections to the verified runtime ownership
+  model.
+- **Result:** The detailed ownership is primarily in
+  `A365/lob_app_wiring.md` sections 4, 7, 8, and 9 and its reference
+  implementation map. `A365/onboarding_agents.md` sections 5 through 7 provide
+  the onboarding summary, while `A365/observability_reference.md` defines the
+  root and child trace contract. The exact four-layer responsibility summary
+  is implied across these sections but is not stated once in a dedicated
+  table.
+- **Validation:** Compared the documented Agent ID binding, root invocation
+  scope, automatic model and tool correlation, and response or error recording
+  with the implementation call path.
+- **Rollback:** Remove this assessment entry; no runtime, tenant, identity, or
+  documentation behavior changed.
+- **Follow-up:** Consider adding a short responsibility-by-layer table to the
+  LOB wiring guide.
+
+## 2026-10-14 11:17 EDT - Assess need for A365 developer guide
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Determine whether the repository has a cohesive Agent 365
+  developer guide, whether the Trading Platform Agent demonstrates a reusable
+  logical design and implementation methodology, and whether that methodology
+  follows current Microsoft guidance.
+- **Change:** Read-only comparison of the repository's architecture,
+  onboarding, wiring, configuration, observability, security, and validation
+  documentation with current Microsoft Agent 365 integration, identity,
+  OpenTelemetry, S2S authentication, and validation guidance.
+- **Result:** The repository has strong source material but no
+  `A365/developers_guide.md`. The implemented pattern is reusable and largely
+  aligns with Microsoft guidance: use the SDK path for a self-hosted agent,
+  register a blueprint and child Agent Identity, keep credentials on the
+  blueprint, initialize Microsoft OpenTelemetry early, use the recommended S2S
+  route with a custom resolver, create a root `invoke_agent` span, preserve
+  existing agent behavior, and validate identity and telemetry end to end.
+  Qualifications are that the local direct HTTP `fmi_path` exchange is a
+  lower-level equivalent of Microsoft's helper-based examples, production
+  federation remains future work, and Defender validation is incomplete
+  because `CloudAppEvents` has no Agent 365 rows.
+- **Validation:** Reviewed current Microsoft Learn pages for integration
+  choice, connecting existing agents, Agent 365 identity, Microsoft
+  OpenTelemetry, observability S2S authentication, and the SDK validation
+  checklist, then mapped their requirements to the implemented call path and
+  repository guides.
+- **Rollback:** Remove this assessment entry; no runtime, tenant, identity, or
+  documentation behavior changed.
+- **Follow-up:** Create a developer guide that assembles the logical design,
+  responsibility model, repeatable implementation steps, code map, validation
+  gates, production hardening, and Microsoft-guidance crosswalk.
+
+## 2026-10-14 11:22 EDT - Create canonical A365 developer guide
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Create a rigorous developer-facing guide that explains the
+  repository's proven Agent 365 logical design and repeatable implementation
+  methodology, grounded in the working Trading Platform Agent and current
+  Microsoft guidance.
+- **Change:** Verified the live bootstrap, framework identity binding,
+  per-request invocation scope, human caller validation, two-step `fmi_path`
+  exchange, exporter lifecycle, tests, container configuration, and current
+  Microsoft Learn guidance. Created `A365/developers_guide.md` and linked it
+  from the A365 index, onboarding guide, LOB wiring guide, and application
+  README. Corrected remaining documentation inconsistencies covering
+  metadata-only content capture, supported `CallerDetails` attribution,
+  direct in-process token exchange, current local-secret requirements,
+  production federation status, and downstream Admin Center and Defender
+  evidence. Corrected a stale Microsoft Learn troubleshooting URL and stale
+  "planned" labels in the observability reference. Declared the directly used
+  `PyJWT[crypto]` dependency. Added a regression test and normalized Agent ID
+  token-endpoint transport failures into the documented degraded telemetry
+  state instead of allowing a connection error to escape startup.
+- **Result:** The canonical developer guide now owns the logical design,
+  responsibility model, implementation phases, privacy and failure contracts,
+  production boundaries, tests, validation gates, reuse method,
+  anti-patterns, document ownership, definition of done, and an explicit
+  Microsoft-guidance crosswalk. All issues found in the directly related A365
+  documentation were corrected. The runtime now preserves application
+  availability when the Agent ID token endpoint is unreachable. Changes are
+  local and uncommitted; no tenant, Azure, identity, permission, license, or
+  production object was changed.
+- **Validation:** The new connection-failure regression test first reproduced
+  the uncaught `aiohttp.ClientConnectionError`, then passed after the fix.
+  All 36 focused observability, caller-identity, chat-authentication, and
+  rate-limit tests passed in the rebuilt Python 3.11 container. The application
+  image build and direct `PyJWT[crypto]` installation succeeded; an initial
+  image build was retried after the package feed returned HTTP 429 for the
+  unrelated `psycopg2-binary` download. Docker Compose validation passed.
+  All local links across 16 A365 Markdown files resolve; every file has one H1
+  and legal heading progression outside code fences; all 37 Microsoft Learn
+  links returned HTTP 200; all six Agent 365 Draw.io/SVG files parsed as XML
+  and contain the required light-gray background; and `git diff --check`
+  passed.
+- **Rollback:** Remove `A365/developers_guide.md`; revert its index and
+  cross-document links; revert the documentation corrections, dependency
+  declaration, Compose/default changes, transport-error normalization, and
+  regression test; and restore this entry to its pre-change state.
+- **Follow-up:** Production managed identity/workload identity federation,
+  per-agent Admin Center Activity evidence, and Defender `CloudAppEvents`
+  ingestion remain explicit future gates. Commit or publish the local changes
+  only when requested.
+
+## 2026-10-14 11:39 EDT - Add Agent 365 component portal guides
+
+- **Status:** Partially succeeded
+- **Scope:** Repository | Tenant
+- **Requested by:** User
+- **Purpose:** Give operators a durable, component-specific map of the major
+  Microsoft Defender, Microsoft Purview, and Microsoft Entra surfaces where
+  Agent 365 identity, activity, risk, policy, alert, and investigation data can
+  appear.
+- **Change:** Create `A365/components/defender_guide.md`,
+  `A365/components/purview_guide.md`, and
+  `A365/components/entra_guide.md`; ground them in current Microsoft guidance,
+  the live read-only tenant portal surfaces, and this repository's verified
+  evidence; distinguish inventory, raw activity, policy evaluation, alerts,
+  and identity logs; and link the guides into the A365 documentation journey.
+  Updated the Purview acceptance scenario to reflect verified Activity
+  Explorer ingestion and pending policy-generated findings. Replaced a stale
+  Entra Agent ID setup reference with the current blueprint documentation.
+- **Result:** Created and integrated the three component guides. The Defender
+  guide covers Security Dashboard for AI, Advanced Hunting, detections,
+  incidents, alerts, App Governance, and the current zero-row evidence. The
+  Purview guide covers unified DSPM, AI observability, the classic transition,
+  Activity Explorer, DLP, Insider Risk, Audit, and content policy. The Entra
+  guide covers the Agent ID object model, application and service-principal
+  surfaces, sponsors, permissions, sign-ins, audit logs, risk, and Conditional
+  Access. During portal discovery, the assistant selected Purview's **Take me
+  there** control to navigate from classic DSPM for AI to unified DSPM. The
+  dialog stated that this action automatically turns on DLP and Insider Risk
+  Management analytics. Prior user-approved Purview policies and Insider Risk
+  analytics were already enabled, and no new policy or object was observed,
+  but whether the click changed or reasserted a tenant setting was not
+  independently confirmed. No rollback was attempted.
+- **Validation:** Read-only portal inspection confirmed the current Defender
+  Advanced Hunting, Security Dashboard for AI, Purview classic Activity
+  Explorer, unified DSPM, unified AI observability, and cross-product risk
+  surfaces. All local links across 19 recursive A365 Markdown files resolve.
+  Every A365 Markdown file has one H1 and legal heading progression outside
+  code fences. All 51 Microsoft Learn references returned HTTP 200.
+  Current-state terminology and identifiers are consistent across the three
+  guides, and `git diff --check` passed. The possible Purview analytics-setting
+  effect remains unverified.
+- **Rollback:** Delete the three component guides, remove their documentation
+  links, revert the Purview acceptance and Entra reference corrections, and
+  revert this ledger entry. Do not alter DLP or Insider Risk analytics as a
+  rollback unless a read-only review first confirms a change and the user
+  explicitly approves the tenant action.
+- **Follow-up:** If requested, perform a read-only Purview audit/configuration
+  review to determine whether **Take me there** changed a tenant setting.
+  Continue to wait for policy analytics and Defender Agent 365 rows before
+  creating any Defender custom detection.
+
+## 2026-10-14 13:00 EDT - Publish A365 engineering guides and fixes
+
+- **Status:** Planned
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Publish the completed Agent 365 developer documentation,
+  component portal guides, diagrams, metadata-only defaults, dependency
+  declaration, and telemetry failure-handling fix to the shared repository.
+- **Change:** Stage the current A365-related documentation, images, runtime,
+  dependency, Compose, and test changes; create one commit on `main` with the
+  required co-author trailer; and push it to `origin/main`.
+- **Result:** Pending.
+- **Validation:** Confirm the staged file set contains no secrets or unrelated
+  files, rerun `git diff --check`, create the commit, push successfully, and
+  verify local `HEAD` matches `origin/main`.
+- **Rollback:** Revert the published commit with a new commit; do not rewrite
+  shared history.
+- **Follow-up:** Pending.

@@ -6,7 +6,7 @@ Diagnose in this order:
 
 1. Existing agent health.
 2. Registration artifacts.
-3. Sidecar/token acquisition.
+3. Agent ID token acquisition.
 4. OpenTelemetry instrumentation.
 5. Exporter response.
 6. Agent 365 licensing and presentation surfaces.
@@ -34,7 +34,7 @@ Never paste unredacted configuration or tokens into support requests.
 | Blueprint missing | Registration did not complete | Verify generated ID and Entra application |
 | Agent identity creation fails | Missing BlueprintPrincipal or propagation delay | Verify principal; retry with bounded backoff |
 | Agent absent from inventory | Missing registration/manageability metadata | Verify Agent 365 registration and `managerApplications` |
-| Sidecar unhealthy | Invalid credential or configuration | Check private endpoint, credential source, and sidecar logs |
+| Agent 365 token not ready | Invalid credential, identity, tenant, or exchange configuration | Check API health, sanitized API logs, credential source, and registered IDs |
 | HTTP 401 exporting | Missing/expired token or wrong audience | Acquire final Observability token and validate expiry/audience |
 | HTTP 403 exporting | Agent ID mismatch or missing grant | Compare token subject, baggage, and export URL |
 | `AADSTS82001` | Wrong exchange/grant type | Use supported `client_credentials` plus `fmi_path` flow |
@@ -114,7 +114,7 @@ Include:
 - Tenant ID.
 - Blueprint and agent object IDs.
 - Trace/correlation IDs.
-- CLI, sidecar, Python, and package versions.
+- CLI, Python, and package versions.
 - Sanitized HTTP status and error code.
 - Reproduction steps.
 - Confirmation that secrets/content were removed.

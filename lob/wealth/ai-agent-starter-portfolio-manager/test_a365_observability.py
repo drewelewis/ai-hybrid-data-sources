@@ -2,6 +2,7 @@ import base64
 import json
 import time
 
+import aiohttp
 import pytest
 
 from observability.a365 import (
@@ -60,11 +61,11 @@ def test_enabled_configuration_reports_missing_values(missing_name):
         A365Settings.load(environment)
 
 
-def test_content_recording_defaults_to_enabled():
+def test_content_recording_defaults_to_disabled():
     environment = _enabled_environment()
     environment.pop("A365_RECORD_CONTENT")
 
-    assert A365Settings.load(environment).record_content is True
+    assert A365Settings.load(environment).record_content is False
 
 
 def test_export_debug_setting_is_opt_in():
@@ -192,6 +193,38 @@ async def test_two_step_exchange_uses_fmi_path_and_agent_assertion(monkeypatch):
     assert calls[1][1]["scope"] == (
         f"api://{OBSERVABILITY_RESOURCE_ID}/.default"
     )
+
+
+@pytest.mark.asyncio
+async def test_token_transport_failure_degrades_without_stopping_runtime(
+    monkeypatch,
+):
+    import observability.a365 as a365_module
+
+    runtime = A365Runtime(A365Settings.load(_enabled_environment()))
+
+    class FailingClientSession:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        def post(self, *_args, **_kwargs):
+            raise aiohttp.ClientConnectionError("token endpoint unavailable")
+
+    monkeypatch.setattr(
+        a365_module.aiohttp,
+        "ClientSession",
+        FailingClientSession,
+    )
+
+    assert await runtime.ensure_token() is False
+    assert runtime.status()["state"] == "degraded"
+    assert runtime.status()["last_error"] == "A365AuthenticationError"
 
 
 def test_conversation_identifier_is_stable_hash_not_raw_session_id():

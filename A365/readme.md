@@ -14,26 +14,69 @@ scenario through developer-integrated identity and observability:
 - Agent 365 provides centralized inventory, governance, audit, and security
   integration in the tenant.
 
-The implementation plan is in
-[implementation_plan.md](./implementation_plan.md).
+## Start here
 
-## Documentation map
+Use this collection according to the work being performed:
+
+1. **Develop or review an integration:** Start with the
+   [developer guide](./developers_guide.md).
+2. **Understand the design:** Read this page, then the
+   [implementation plan](./implementation_plan.md).
+3. **Design the identity boundary:** Use the
+   [blueprint guide](./blueprints.md) and
+   [LOB blueprint guidance](./lob_blueprints.md).
+4. **Register and configure an agent:** Follow the
+   [provisioning runbook](./provisioning_runbook.md), then the
+   [configuration reference](./configuration_reference.md).
+5. **Wire an application:** Use the
+   [existing-agent onboarding guide](./onboarding_agents.md) and the concrete
+   [LOB application wiring guide](./lob_app_wiring.md).
+6. **Prove the integration:** Run the
+   [verification process](./verification_process.md).
+7. **Investigate component data:** Use the
+   [Defender guide](./components/defender_guide.md),
+   [Purview guide](./components/purview_guide.md), and
+   [Entra guide](./components/entra_guide.md).
+8. **Operate and govern it:** Use the
+   [operations runbook](./operations_runbook.md),
+   [tenant governance guide](./tenant_governance.md), and
+   [security and privacy guide](./security_and_privacy.md).
+
+## Documentation by lifecycle
+
+### Architecture and planning
 
 | Document | Purpose |
 |---|---|
+| [Developer guide](./developers_guide.md) | Canonical logical design, code responsibilities, implementation method, validation gates, and Microsoft-guidance crosswalk |
 | [Implementation plan](./implementation_plan.md) | Phases, decisions, tests, rollout, and definition of done |
 | [Blueprints](./blueprints.md) | Beginner and architecture guide for Agent ID blueprints |
-| [LOB blueprint guidance](./lob_bluprints.md) | Enterprise taxonomy, boundary rules, and profiles for Contoso Bank lines of business |
-| [Agent 365 CLI guide](./agent365_cli.md) | Installation, authentication, setup, advanced usage, diagnostics, automation, and cleanup |
-| [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
-| [Verification process](./verification_process.md) | ARRANGE, ACT, ASSERT verification for identity, telemetry, privacy, and portal arrival |
-| [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |
-| [Defender query CLI](./query-defender.ps1) | Run read-only Advanced Hunting queries from PowerShell |
-| [Configuration reference](./configuration_reference.md) | Environment variables, secrets, and compatibility |
-| [Operations runbook](./operations_runbook.md) | Monitoring, rotation, incidents, rollback, and retirement |
-| [Troubleshooting](./troubleshooting.md) | Identity, token, exporter, CLI, and telemetry failures |
+| [LOB blueprint guidance](./lob_blueprints.md) | Enterprise taxonomy, boundary rules, and profiles for Contoso Bank lines of business |
 | [Tenant governance](./tenant_governance.md) | Roles, RACI, policies, risk, licensing, and approvals |
 | [Security and privacy](./security_and_privacy.md) | Trust boundaries, data classification, threats, and retention |
+
+### Provisioning and implementation
+
+| Document | Purpose |
+|---|---|
+| [Agent 365 CLI guide](./agent365_cli.md) | Installation, authentication, setup, diagnostics, automation, and cleanup |
+| [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
+| [Configuration reference](./configuration_reference.md) | Environment variables, secrets, and compatibility |
+| [Existing-agent onboarding](./onboarding_agents.md) | End-to-end steps for adding Agent 365 to an existing runtime |
+| [LOB application wiring](./lob_app_wiring.md) | File-by-file runtime wiring for identity, authentication, telemetry, Purview, and Defender |
+| [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |
+
+### Validation and operations
+
+| Document | Purpose |
+|---|---|
+| [Verification process](./verification_process.md) | ARRANGE, ACT, ASSERT verification for identity, telemetry, privacy, and portal arrival |
+| [Defender component guide](./components/defender_guide.md) | Security Dashboard for AI, Advanced Hunting, detections, alerts, incidents, and current Defender evidence |
+| [Purview component guide](./components/purview_guide.md) | Unified DSPM, AI observability, Activity Explorer, policies, alerts, audit, and Purview RBAC |
+| [Entra component guide](./components/entra_guide.md) | Agent ID objects, credentials, permissions, sign-ins, audit logs, risk, and Conditional Access |
+| [Defender query CLI](./query-defender.ps1) | Run read-only Advanced Hunting queries from PowerShell |
+| [Operations runbook](./operations_runbook.md) | Monitoring, rotation, incidents, rollback, and retirement |
+| [Troubleshooting](./troubleshooting.md) | Identity, token, exporter, CLI, and telemetry failures |
 
 ## Status
 
@@ -49,14 +92,18 @@ The implementation plan is in
 | Agent 365 inventory registration | Implemented |
 | Microsoft OpenTelemetry Distro | Implemented |
 | Agent 365 S2S telemetry authentication | Implemented |
-| Defender/Purview/Admin Center validation | Planned |
+| Microsoft 365 Admin Center inventory | Implemented |
+| Purview Activity Explorer ingestion | Verified |
+| Purview policy evaluation | Awaiting policy evaluation window |
+| Defender Advanced Hunting ingestion | Blocked: `CloudAppEvents` has no Agent 365 rows |
 | Work IQ tooling | Out of scope |
 | Notifications and agent user account | Out of scope |
 
-The local-development identity, inventory registration, and metadata-only
-telemetry exporter are implemented. Portal-side arrival and rendering still
-require verification using
-[the ARRANGE, ACT, ASSERT process](./verification_process.md).
+The local-development identity, inventory registration, runtime exporter, and
+Purview Activity Explorer ingestion are implemented. Defender ingestion and
+policy-generated findings remain separate downstream assertions. Use
+[the ARRANGE, ACT, ASSERT process](./verification_process.md) to validate each
+surface without treating one successful portal as proof of all others.
 
 ## Why this integration path
 
@@ -135,11 +182,11 @@ The two authentication paths remain separate:
 | User to APIM | Device-code user token | Authorize the interactive model request |
 | Agent to A365 | Agent Identity S2S token | Attribute telemetry and governance to the agent |
 
-## Planned Agent 365 capabilities
+## Agent 365 capabilities and boundaries
 
 ### Identity and inventory
 
-The agent will have:
+The local-development integration has:
 
 - One Agent Identity Blueprint for the agent type.
 - A mandatory BlueprintPrincipal.
@@ -153,7 +200,7 @@ must be short-lived and must never be committed.
 
 ### Observability
 
-The Python runtime will use `microsoft-opentelemetry` and emit:
+The Python runtime uses `microsoft-opentelemetry` and emits:
 
 - One `invoke_agent` root span for each chat turn.
 - Child model inference spans.
@@ -181,11 +228,13 @@ Registration does not automatically grant the agent access to Microsoft 365
 data. Work IQ, Graph permissions, and notifications remain disabled unless
 they are separately justified and approved.
 
-## Telemetry data policy
+## Telemetry content decision
 
-The default is metadata-only.
+Telemetry content capture is a deliberate governance decision, not an
+incidental exporter setting. `A365_RECORD_CONTENT` defaults to `false`, making
+metadata-only export the baseline for normal development and production.
 
-Do not export:
+Metadata-only environments must not export:
 
 - Raw user prompts.
 - Model responses.
@@ -196,9 +245,11 @@ Do not export:
 - Bearer tokens or device codes.
 - PostgreSQL credentials or connection strings.
 
-Content recording remains disabled unless an explicit privacy and compliance
-review approves it. Tests must inspect exported attributes to verify this
-policy rather than relying only on configuration.
+An approved nonproduction policy test can set `A365_RECORD_CONTENT=true` to
+export prompts, responses, and supported tool or inference content. Enable
+that mode only after privacy, compliance, access, retention, and billing
+review, then return it to `false`. Tests must inspect exported attributes to
+verify the effective policy rather than relying only on configuration.
 
 ## Licensing and tenant requirements
 
@@ -218,23 +269,24 @@ Work IQ requires Microsoft 365 Copilot and is not part of this implementation.
 An agent user account, mailbox, Teams presence, and notifications require the
 Frontier preview program and are also out of scope.
 
-## Planned configuration
+## Configuration entry point
 
-Non-secret settings will use names similar to:
+Set the required mode and non-secret identifiers explicitly:
 
 ```dotenv
-ENABLE_A365_OBSERVABILITY=false
+ENABLE_A365_OBSERVABILITY=true
 A365_TENANT_ID=
 A365_BLUEPRINT_CLIENT_ID=
 A365_AGENT_ID=
-A365_AUTH_MODE=agent-id-sidecar
-A365_AGENT_ID_SIDECAR_URL=http://agent-id-sidecar:5000
 A365_RECORD_CONTENT=false
 ```
 
-Credentials must be supplied through ignored local configuration or an
-approved secret store. They must not be added to `env.sample`, Compose defaults,
-or source code.
+The local-development blueprint credential is supplied separately through
+ignored local configuration. Production must use an approved secret store or
+federated identity. Credentials must not be added to examples, Compose
+defaults, or source code. See the
+[configuration reference](./configuration_reference.md) for the complete
+setting contract.
 
 ## Operational behavior
 
@@ -277,4 +329,4 @@ See the full checklist and rollout phases in
 - [Validation checklist](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/validation-checklist)
 - [Govern local agents](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/govern-local-agents)
 
-Documentation reviewed: October 5, 2026.
+Documentation reviewed: October 14, 2026.

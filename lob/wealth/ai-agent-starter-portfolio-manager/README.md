@@ -4,7 +4,9 @@ An AI-powered portfolio event ledger API built with **Microsoft Agent Framework*
 
 Microsoft Agent 365 identity, observability, governance, security, and
 operational planning is documented in
-[A365/readme.md](../../../A365/readme.md).
+[A365/readme.md](../../../A365/readme.md). Developers implementing or reviewing
+the integration should start with the
+[Agent 365 developer guide](../../../A365/developers_guide.md).
 
 ---
 

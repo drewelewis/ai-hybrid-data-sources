@@ -43,8 +43,9 @@ For the fastest end-to-end confirmation, perform these scenarios in order:
 7. Review the capability matrix so preview or unimplemented features are not
    mistaken for failures.
 
-Allow at least 5-15 minutes for portal ingestion before declaring telemetry
-missing.
+Allow at least 30-90 minutes for Activity Explorer or portal ingestion before
+declaring telemetry missing. Some policy analytics and recommendations can
+take 24 hours or longer.
 
 ---
 
@@ -306,7 +307,7 @@ hosted interaction endpoint.
 ### ARRANGE
 
 Remain in the registered agent's details pane. Use the UTC window recorded in
-Scenario 3. Allow 5-15 minutes for ingestion and refresh the page.
+Scenario 3. Allow 30-90 minutes or longer for ingestion and refresh the page.
 
 ### ACT
 
@@ -357,7 +358,9 @@ Activity record is the end-to-end assertion.
 ### ARRANGE
 
 Sign in to [Microsoft Defender](https://security.microsoft.com/) with access
-to **Advanced Hunting**.
+to **Advanced Hunting**. Use the
+[Defender component guide](./components/defender_guide.md) to distinguish the
+Security Dashboard for AI, raw hunting events, custom detections, and alerts.
 
 ### ACT
 
@@ -427,7 +430,9 @@ evidence.
 
 Sign in to [Microsoft Entra Admin Center](https://entra.microsoft.com/) with
 permission to view Agent Identities, enterprise applications, permissions,
-and workload sign-ins.
+and workload sign-ins. Use the
+[Entra component guide](./components/entra_guide.md) to distinguish blueprint
+applications, tenant principals, sign-ins, audit events, and risk findings.
 
 ### ACT
 
@@ -477,17 +482,25 @@ Recognize the current data boundary:
 - the agent has no SharePoint, OneDrive, Exchange, Teams, or Work IQ data
   permission.
 
+Use the [Purview component guide](./components/purview_guide.md) to distinguish
+unified DSPM, AI observability, Activity Explorer, policy evaluation, alerts,
+and Audit.
+
 ### ACT
 
-In the Agent Registry, review the **Data & Tools** and **Security** tabs. If
-your tenant exposes applicable Purview audit or risk records for the agent,
-inspect only the Scenario 3 window.
+In Purview Activity Explorer, filter the Scenario 3 UTC window for
+`TradingPlatformAgent` and `Invoke Agent`. Review unified DSPM AI observability
+for the exact Agent ID, then inspect applicable policy or alert surfaces
+without assuming that an ingested event must create an alert.
 
 ### ASSERT
 
-- Agent identity and operational metadata can be governed.
+- An `Invoke Agent` activity record appears for the registered identity.
+- Agent identity and operational metadata are available for governance.
 - No Microsoft 365 knowledge source or data permission is listed.
 - No confidential portfolio content appears in Purview.
+- Policy-generated warnings, recommendations, and alerts are recorded as a
+  separate pending or verified assertion.
 - The absence of SharePoint/Exchange/Teams DLP events is expected and is not
   an integration failure.
 
@@ -551,7 +564,7 @@ separate controls and must be tested separately.
 | PostgreSQL tools | Ask account, price, position, and trade questions |
 | Entra Agent Identity | Entra identity and workload sign-ins |
 | Agent 365 Registry | Admin Center **Agents** > **All agents** |
-| Metadata-only observability | Registry **Activity** tab |
+| Purview Activity Explorer ingestion | Find recent `Invoke Agent` records for `TradingPlatformAgent` |
 | Sponsor and ownership | Registry and Entra details |
 | Permissions review | Registry **Permissions** and Entra grants |
 | Emergency telemetry disable | `ENABLE_A365_OBSERVABILITY=false` |
@@ -567,7 +580,8 @@ separate controls and must be tested separately.
 | Credential rotation drill | Still required |
 | Retention/residency confirmation | Tenant decision still required |
 | Production managed identity/WIF | Not implemented; local secret is in use |
-| Defender security event visibility | Instrumentation and licensing are present, but this tenant does not currently expose `CloudAppEvents` |
+| Admin Center Activity rendering | Inventory is visible; per-agent Activity still requires conclusive verification |
+| Defender security event visibility | `CloudAppEvents` resolves, but currently contains no Agent 365 rows |
 
 ### Intentionally not enabled
 
@@ -582,7 +596,7 @@ separate controls and must be tested separately.
 | Autonomous triggers | No scheduler/event trigger is implemented |
 | Connected agents | No agent-to-agent connection is configured |
 | Computer use | Not configured or approved |
-| Prompt/response display in telemetry | Disabled by the metadata-only policy |
+| Prompt/response display in normal operation | Disabled by the metadata-only default; enable only for an approved nonproduction policy test |
 
 These missing capabilities are not deployment defects. Each is a separate
 feature with additional architecture, licensing, permissions, privacy, and
@@ -629,11 +643,12 @@ Agent 365 integration as **partially working** and troubleshoot ingestion,
 licensing, identity attribution, and viewer permissions.
 
 For this validated environment, the current result is **partially working**:
-the runtime, Agent Identity, Registry, metadata-only export, and Admin Center
-Activity are working, but Defender verification is blocked because
-`CloudAppEvents` is unavailable in the tenant. This does not prove that the
-agent failed to export spans, and Admin Center arrival does not prove that
-every child inference and tool span was accepted.
+the runtime, Agent Identity, Registry inventory, metadata-only export, and
+Purview Activity Explorer ingestion are working. Per-agent Admin Center
+Activity rendering still requires conclusive verification, and Defender
+verification is blocked because `CloudAppEvents` currently contains no Agent
+365 rows. Purview arrival does not prove that every child inference and tool
+span was accepted.
 
 ## Current Microsoft references
 
@@ -641,6 +656,6 @@ every child inference and tool span was accepted.
 - [Agent 365 observability](https://learn.microsoft.com/en-us/microsoft-agent-365/admin/monitor-agents)
 - [Microsoft OpenTelemetry Distro](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/microsoft-opentelemetry)
 - [Agent 365 observability concepts](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/observability-concepts)
-- [Troubleshoot direct OpenTelemetry integration](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/observability-direct-troubleshoot)
+- [Troubleshoot direct OpenTelemetry integration](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/direct-open-telemetry-troubleshooting)
 - [Observe agent activity](https://learn.microsoft.com/en-us/microsoft-agent-365/observe)
 - [Microsoft Purview support for Agent 365](https://learn.microsoft.com/en-us/microsoft-agent-365/guidance/purview-agent-365)

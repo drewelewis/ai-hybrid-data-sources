@@ -14,6 +14,7 @@ agent-dev-cli==0.0.1b260128
 
 # Azure authentication
 azure-identity
+PyJWT[crypto]
 microsoft-opentelemetry==1.3.9
 
 # GitHub integration

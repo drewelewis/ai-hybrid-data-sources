@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document explains how Contoso Bank's lines of business (LOBs) should
+This guide explains how Contoso Bank's lines of business (LOBs) should
 influence Microsoft Entra Agent ID blueprint design. It supplements the
 enterprise [blueprint guide](./blueprints.md); it does not replace the
 identity, credential, permission, or lifecycle rules in that guide.

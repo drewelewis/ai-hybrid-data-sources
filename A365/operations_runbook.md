@@ -15,7 +15,7 @@ implemented.
    Invoke-RestMethod http://127.0.0.1:8989/health
    ```
 
-3. Verify the Agent ID sidecar health endpoint from the API network.
+3. Verify the API health response reports Agent 365 token readiness.
 4. Run one non-sensitive test prompt.
 5. Confirm an `invoke_agent` trace appears in the expected A365 surfaces.
 
@@ -24,7 +24,7 @@ Expected health:
 - API healthy.
 - Agent ready.
 - Database connected.
-- Sidecar healthy when A365 is enabled.
+- Agent 365 state and token readiness are healthy when export is enabled.
 - Exporter queue operating without drops.
 
 ## Routine operating cadence
@@ -32,7 +32,7 @@ Expected health:
 ### Daily
 
 - Review exporter authentication failures.
-- Review sidecar health failures.
+- Review Agent ID token acquisition and refresh failures.
 - Review APIM/model throttling separately from telemetry failures.
 - Triage high-confidence agent risk signals.
 
@@ -55,14 +55,14 @@ Expected health:
 
 - Perform access and lifecycle review.
 - Test emergency disable and rollback in nonproduction.
-- Review dependency and sidecar versions.
+- Review identity and observability dependency versions.
 - Revalidate privacy, retention, and licensing.
 
 ## Credential rotation
 
 1. Create the replacement blueprint credential.
 2. Configure the runtime/secret store with the replacement.
-3. Restart the sidecar/API in nonproduction.
+3. Restart the API in nonproduction.
 4. Validate token subject, audience, tenant, and expiry.
 5. Validate end-to-end telemetry.
 6. Roll out to production.
@@ -90,7 +90,7 @@ does not automatically revoke the user's APIM token.
 
 1. Record detection time, agent ID, blueprint ID, trace ID, and affected host.
 2. Disable the affected identity if continued operation is unsafe.
-3. Preserve API, sidecar, Entra, Defender, Purview, and APIM evidence.
+3. Preserve API, Entra, Defender, Purview, and APIM evidence.
 4. Review recent permission changes and sign-ins.
 5. Review tool and model operations in the trace.
 6. Rotate compromised blueprint credentials.

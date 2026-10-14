@@ -1,4 +1,13 @@
-# Microsoft Agent 365 Implementation Plan
+# Microsoft Agent 365 Implementation Plan and Current-State Record
+
+## Status
+
+The local-development integration is implemented. This document records the
+original design gates and the resulting architecture; it is not an unchecked
+deployment backlog. Use the
+[verification process](./verification_process.md) for current acceptance
+status and the [operations runbook](./operations_runbook.md) for live
+procedures.
 
 ## 1. Objective
 
@@ -32,8 +41,13 @@ The current agent is:
   - A server-held APIM subscription key.
 - Connected to a local PostgreSQL portfolio ledger.
 - Routed privately to APIM through OpenWrt and the Site-to-Site VPN.
-- Not yet registered in Agent 365.
-- Not yet instrumented with Microsoft OpenTelemetry.
+- Registered with an Agent Identity Blueprint, BlueprintPrincipal, sponsored
+  local Agent Identity, and Agent 365 inventory entry.
+- Instrumented with Microsoft OpenTelemetry and an Agent 365 S2S exporter.
+- Using an in-process, tested two-step `fmi_path` token exchange with
+  background refresh.
+- Exporting metadata by default; full content requires an explicit approved
+  nonproduction override.
 
 ## 3. Selected Integration Design
 
@@ -86,9 +100,9 @@ For local development:
 
 - A short-lived blueprint client secret may be used only if required.
 - Store it only in the git-ignored `.env` or a local secret store.
-- Prefer the Microsoft Entra SDK for AgentID sidecar to perform the two-step
-  `fmi_path` exchange for the Python agent.
-- Do not publish the sidecar port to the host or external network.
+- Use the implemented direct two-step `fmi_path` exchange.
+- Cache the final token in memory, refresh it before expiry, and never expose
+  a token endpoint or log token values.
 
 For an Azure-hosted production runtime:
 
@@ -206,17 +220,13 @@ Acceptance criteria:
 
 Tasks:
 
-- [ ] Choose the supported local authentication implementation:
-  - Preferred: Microsoft Entra SDK for AgentID sidecar.
-  - Alternative: Direct, tested two-step `fmi_path` exchange.
-- [ ] Add a local development credential to the blueprint only.
-- [ ] Add the sidecar to `docker-compose.yaml` without publishing its port.
-- [ ] Configure the sidecar with tenant ID, blueprint client ID, credential
-      source, and Observability downstream scope.
-- [ ] Add a health check for the sidecar.
-- [ ] Make the API depend on sidecar health when A365 is enabled.
-- [ ] Implement token caching and refresh before expiry.
-- [ ] Validate final token claims before returning it to the exporter:
+- [x] Select the direct, tested two-step `fmi_path` exchange.
+- [x] Add a local development credential to the blueprint only.
+- [x] Configure tenant ID, blueprint client ID, agent ID, credential source,
+      and Observability downstream scope.
+- [x] Report token readiness through the API health response.
+- [x] Implement in-memory token caching and background refresh before expiry.
+- [x] Validate final token claims before returning it to the exporter:
   - Audience is the Agent 365 observability resource.
   - Token is app-only.
   - Token is not expired.
@@ -229,8 +239,6 @@ ENABLE_A365_OBSERVABILITY=false
 A365_TENANT_ID=
 A365_BLUEPRINT_CLIENT_ID=
 A365_AGENT_ID=
-A365_AUTH_MODE=agent-id-sidecar
-A365_AGENT_ID_SIDECAR_URL=http://agent-id-sidecar:5000
 A365_RECORD_CONTENT=false
 ```
 
@@ -246,7 +254,7 @@ Acceptance criteria:
 
 ### Phase 3 - Instrument the Python runtime
 
-Planned repository changes:
+Implemented repository changes:
 
 - `requirements.txt`
   - Add a pinned, tested `microsoft-opentelemetry` version.
@@ -266,7 +274,6 @@ Planned repository changes:
   - Add manual spans only where automatic instrumentation has gaps.
 - `docker-compose.yaml`
   - Pass non-secret A365 settings.
-  - Add the sidecar if selected.
 - `env.sample`
   - Document non-secret A365 configuration and feature flags.
 - `README.md`
@@ -348,7 +355,7 @@ Tasks:
 - [ ] Store all secrets in an approved secret store.
 - [ ] Pin all A365 and OpenTelemetry dependencies.
 - [ ] Add dependency and image vulnerability scanning.
-- [ ] Restrict sidecar communication to the agent workload.
+- [x] Keep token exchange in process and expose no local token endpoint.
 - [ ] Add exporter health/error metrics.
 - [ ] Document credential rotation and emergency disable procedures.
 - [ ] Complete a nonproduction soak test.
@@ -401,7 +408,7 @@ registration used by `chat.py`; those identities serve different purposes.
 | Human APIM token reused as agent identity | Use a dedicated S2S Agent ID token resolver. |
 | Unused Azure resources created by CLI | Review registration mode before running `a365 setup all`. |
 | Secret committed to Git | Keep credentials in ignored local/secret-store configuration. |
-| Sidecar exposed to the network | Do not publish its port; restrict it to the workload network. |
+| Token or credential exposed through diagnostics | Keep exchange in process and expose only sanitized readiness and errors. |
 | Telemetry failure breaks chat | Export asynchronously, bound queues/timeouts, and log failures. |
 | Blueprint and agent identity confused | Record both object types and validate the token subject. |
 | Missing sponsor or lifecycle owner | Make sponsor verification an acceptance gate. |
@@ -431,6 +438,6 @@ The integration is complete when:
 - [Microsoft OpenTelemetry Distro](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/microsoft-opentelemetry)
 - [Observability authentication setup](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/observability-authentication-setup)
 - [Agent 365 SDK validation checklist](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/validation-checklist)
-- [Microsoft Entra Agent ID setup](https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-id-setup-instructions)
+- [Microsoft Entra Agent ID blueprints](https://learn.microsoft.com/en-us/entra/agent-id/agent-blueprint)
 
-Documentation reviewed: October 5, 2026.
+Documentation reviewed: October 14, 2026.

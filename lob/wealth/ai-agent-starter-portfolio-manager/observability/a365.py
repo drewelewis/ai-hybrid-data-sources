@@ -82,7 +82,7 @@ def _configure_export_diagnostics(
 @dataclass(frozen=True)
 class A365Settings:
     enabled: bool
-    record_content: bool = True
+    record_content: bool = False
     tenant_id: str = ""
     blueprint_client_id: str = ""
     blueprint_client_secret: str = ""
@@ -130,7 +130,7 @@ class A365Settings:
         return cls(
             enabled=True,
             record_content=_is_true(
-                environment.get("A365_RECORD_CONTENT", "true")
+                environment.get("A365_RECORD_CONTENT", "false")
             ),
             tenant_id=_required_uuid(environment, "A365_TENANT_ID"),
             blueprint_client_id=_required_uuid(
@@ -317,29 +317,34 @@ class A365Runtime:
         token_url: str, form: Mapping[str, str]
     ) -> dict[str, object]:
         timeout = aiohttp.ClientTimeout(total=15)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(token_url, data=form) as response:
-                try:
-                    payload = json.loads(await response.text())
-                except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                    raise A365AuthenticationError(
-                        "Agent ID token endpoint returned a non-JSON response."
-                    ) from error
-                if response.status >= 400:
-                    error_code = (
-                        payload.get("error", "unknown_error")
-                        if isinstance(payload, dict)
-                        else "unknown_error"
-                    )
-                    raise A365AuthenticationError(
-                        "Agent ID token endpoint returned "
-                        f"HTTP {response.status} ({error_code})."
-                    )
-                if not isinstance(payload, dict):
-                    raise A365AuthenticationError(
-                        "Agent ID token endpoint returned an invalid response."
-                    )
-                return payload
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(token_url, data=form) as response:
+                    try:
+                        payload = json.loads(await response.text())
+                    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                        raise A365AuthenticationError(
+                            "Agent ID token endpoint returned a non-JSON response."
+                        ) from error
+                    if response.status >= 400:
+                        error_code = (
+                            payload.get("error", "unknown_error")
+                            if isinstance(payload, dict)
+                            else "unknown_error"
+                        )
+                        raise A365AuthenticationError(
+                            "Agent ID token endpoint returned "
+                            f"HTTP {response.status} ({error_code})."
+                        )
+                    if not isinstance(payload, dict):
+                        raise A365AuthenticationError(
+                            "Agent ID token endpoint returned an invalid response."
+                        )
+                    return payload
+        except (aiohttp.ClientError, asyncio.TimeoutError) as error:
+            raise A365AuthenticationError(
+                "Agent ID token endpoint request failed."
+            ) from error
 
     @contextmanager
     def invoke_scope(
@@ -513,7 +518,10 @@ def initialize_a365_observability(
         enable_sensitive_data=settings.record_content,
     )
     _initialized = True
-    LOGGER.info("Agent 365 metadata-only observability initialized.")
+    LOGGER.info(
+        "Agent 365 observability initialized with content recording %s.",
+        "enabled" if settings.record_content else "disabled",
+    )
     return _runtime
 
 

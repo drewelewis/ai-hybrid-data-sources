@@ -15,9 +15,9 @@
 | `ENABLE_A365_OBSERVABILITY` | Yes | No | `false` | Master feature flag |
 | `A365_TENANT_ID` | Yes | No | None | Tenant receiving telemetry |
 | `A365_BLUEPRINT_CLIENT_ID` | Yes | No | None | Blueprint application/client ID |
-| `A365_BLUEPRINT_CLIENT_SECRET` | Yes for local development | Yes | None | Blueprint credential used only for the first token exchange |
+| `A365_BLUEPRINT_CLIENT_SECRET` | Yes in the current implementation | Yes | None | Blueprint credential used only for the first token exchange |
 | `A365_AGENT_ID` | Yes | No | None | Registered agent identity client ID |
-| `A365_RECORD_CONTENT` | No | No | `true` | Captures prompts, responses, and available tool/inference content; may include portfolio data |
+| `A365_RECORD_CONTENT` | No | No | `false` | Enables approved nonproduction capture of prompts, responses, and available tool/inference content; may include portfolio data |
 | `A365_CHANNEL_NAME` | No | No | `local-cli` | Stable channel attribute |
 | `A365_SERVER_ADDRESS` | No | No | `localhost` | Agent service hostname exported as endpoint metadata |
 | `A365_SERVER_PORT` | No | No | `SERVER_PORT` or `8989` | Agent service port exported as endpoint metadata |
@@ -36,9 +36,10 @@ The Python runtime performs the Agent ID two-step `fmi_path` exchange directly:
    Identity to request the Agent 365 Observability `/.default` scope.
 
 The final token is cached in memory until shortly before expiry. Tokens and
-credentials are never written to logs or telemetry. Production hosting must
-replace the local development secret with managed identity and workload
-identity federation.
+credentials are never written to logs or telemetry. The current implementation
+requires a blueprint client secret. Production managed identity and workload
+identity federation are the target design but require a separate runtime
+implementation before rollout.
 
 ## Secret sources
 
@@ -46,7 +47,7 @@ identity federation.
 |---|---|
 | Local development | Git-ignored `.env` or developer secret store |
 | CI validation | Protected pipeline secret |
-| Azure production | Key Vault and managed identity/federation |
+| Azure production | Target: Key Vault and managed identity/federation; not yet implemented |
 
 The blueprint secret is never added to:
 
@@ -72,15 +73,20 @@ A365_SERVER_PORT=8989
 
 ## Startup validation
 
-When `ENABLE_A365_OBSERVABILITY=true`, fail startup if:
+When `ENABLE_A365_OBSERVABILITY=true`, configuration loading fails before the
+server starts if:
 
 - A required ID is blank or malformed.
-- Content recording is enabled without an explicit approved override.
-- Tenant or agent IDs do not match generated registration artifacts.
+- The blueprint client secret is absent.
+- Server address or port configuration is invalid.
 
-An authentication or exporter outage is reported as `degraded` in `/health`
-and logged without credentials. It does not make portfolio requests
-unavailable.
+`A365_RECORD_CONTENT=true` is an explicit override. Use it only for an approved
+nonproduction policy test and return it to `false` afterward.
+
+An invalid credential, token claim, tenant, or registered-object combination
+fails token acquisition after application startup. It is reported as
+`degraded` in `/health` and logged without credentials. It does not make
+portfolio requests unavailable.
 
 ## Compatibility record
 
@@ -94,7 +100,7 @@ Record tested versions before rollout:
 | Agent 365 CLI | 1.1.226 |
 | Agent ID exchange | Direct two-step `fmi_path` |
 | Docker Compose | Record at validation |
-| Agent 365 docs review | October 5, 2026 |
+| Agent 365 docs review | October 14, 2026 |
 
 Every dependency upgrade requires focused identity, telemetry, redaction, and
 chat regression tests.

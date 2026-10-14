@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+  <title id="title">LOB application wiring to Microsoft Agent 365</title>
+  <desc id="desc">Three lanes show the user request path, identity and correlation, and telemetry routing from a self-hosted LOB agent to Microsoft Agent 365, Purview, Defender, and Admin Center.</desc>
+  <defs>
+    <marker id="blueArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#6c8ebf"/></marker>
+    <marker id="purpleArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#9673a6"/></marker>
+    <marker id="greenArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#82b366"/></marker>
+    <marker id="goldArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><path d="M0,0 L10,3.5 L0,7 Z" fill="#d79b00"/></marker>
+    <style>
+      .lane { fill: #ffffff; stroke: #b3b3b3; stroke-width: 2; rx: 12; }
+      .laneTitle { font: 700 16px Arial, sans-serif; fill: #2c3e50; }
+      .box { stroke-width: 2; rx: 9; }
+      .label { font: 700 13px Arial, sans-serif; text-anchor: middle; }
+      .detail { font: 11px Arial, sans-serif; text-anchor: middle; }
+      .edgeLabel { font: 11px Arial, sans-serif; fill: #34495e; text-anchor: middle; }
+      .edge { fill: none; stroke-width: 2; }
+    </style>
+  </defs>
+  <rect width="1400" height="820" fill="#f7f7f7"/>
+
+  <rect class="lane" x="30" y="30" width="1340" height="210"/>
+  <text x="55" y="58" class="laneTitle">1. User request path</text>
+  <rect class="lane" x="30" y="270" width="1340" height="200"/>
+  <text x="55" y="298" class="laneTitle">2. Identity and correlation</text>
+  <rect class="lane" x="30" y="500" width="1340" height="270"/>
+  <text x="55" y="528" class="laneTitle">3. Telemetry and governance</text>
+
+  <rect class="box" x="75" y="100" width="170" height="70" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="160" y="128" class="label" fill="#5f4b00">End user</text><text x="160" y="151" class="detail" fill="#5f4b00">Device-code sign-in</text>
+  <rect class="box" x="295" y="100" width="170" height="70" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="380" y="128" class="label" fill="#1f4e79">chat.py</text><text x="380" y="151" class="detail" fill="#1f4e79">Interactive client</text>
+  <rect class="box" x="515" y="100" width="190" height="70" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="610" y="128" class="label" fill="#1f4e79">FastAPI POST chat</text><text x="610" y="151" class="detail" fill="#1f4e79">Request lifecycle</text>
+  <rect class="box" x="755" y="100" width="210" height="70" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="860" y="128" class="label" fill="#4a235a">Trading Platform Agent</text><text x="860" y="151" class="detail" fill="#4a235a">Microsoft Agent Framework</text>
+  <rect class="box" x="1015" y="75" width="200" height="65" fill="#f8cecc" stroke="#b85450"/>
+  <text x="1115" y="102" class="label" fill="#7b241c">APIM and model</text><text x="1115" y="123" class="detail" fill="#7b241c">Governed inference route</text>
+  <rect class="box" x="1015" y="155" width="200" height="65" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="1115" y="182" class="label" fill="#285c2d">LOB tools and PostgreSQL</text><text x="1115" y="203" class="detail" fill="#285c2d">Business data path</text>
+
+  <line class="edge" x1="245" y1="135" x2="295" y2="135" stroke="#6c8ebf" marker-end="url(#blueArrow)"/><text x="270" y="124" class="edgeLabel">sign in</text>
+  <line class="edge" x1="465" y1="135" x2="515" y2="135" stroke="#6c8ebf" marker-end="url(#blueArrow)"/><text x="490" y="119" class="edgeLabel">POST chat</text>
+  <line class="edge" x1="705" y1="135" x2="755" y2="135" stroke="#9673a6" marker-end="url(#purpleArrow)"/><text x="730" y="119" class="edgeLabel">run</text>
+  <line class="edge" x1="965" y1="120" x2="1015" y2="107" stroke="#6c8ebf" marker-end="url(#blueArrow)"/>
+  <line class="edge" x1="965" y1="150" x2="1015" y2="187" stroke="#82b366" marker-end="url(#greenArrow)"/>
+
+  <rect class="box" x="280" y="335" width="240" height="70" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="400" y="361" class="label" fill="#5f4b00">Validate user token</text><text x="400" y="384" class="detail" fill="#5f4b00">Signature, issuer, audience, tenant, oid</text>
+  <rect class="box" x="565" y="335" width="240" height="70" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="685" y="361" class="label" fill="#5f4b00">Pseudonymous caller ID</text><text x="685" y="384" class="detail" fill="#5f4b00">Hash of tenant ID and object ID</text>
+  <rect class="box" x="850" y="310" width="220" height="65" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="960" y="337" class="label" fill="#4a235a">Registered Agent ID</text><text x="960" y="358" class="detail" fill="#4a235a">Blueprint and tenant IDs</text>
+  <rect class="box" x="850" y="390" width="220" height="65" fill="#ffe6cc" stroke="#d79b00"/>
+  <text x="960" y="417" class="label" fill="#7d5100">S2S token resolver</text><text x="960" y="438" class="detail" fill="#7d5100">Direct fmi_path exchange</text>
+  <line class="edge" x1="520" y1="370" x2="565" y2="370" stroke="#d79b00" marker-end="url(#goldArrow)"/><text x="542" y="358" class="edgeLabel">derive</text>
+  <line class="edge" x1="960" y1="375" x2="960" y2="390" stroke="#d79b00" marker-end="url(#goldArrow)"/>
+  <path class="edge" d="M610 170 V300 H400 V335" stroke="#d6b656" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+
+  <rect class="box" x="100" y="590" width="230" height="70" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="215" y="617" class="label" fill="#1f4e79">InvokeAgent root scope</text><text x="215" y="640" class="detail" fill="#1f4e79">Agent, caller, conversation, channel</text>
+  <rect class="box" x="380" y="590" width="230" height="70" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="495" y="617" class="label" fill="#1f4e79">Model and tool spans</text><text x="495" y="640" class="detail" fill="#1f4e79">Response or sanitized error</text>
+  <rect class="box" x="660" y="590" width="220" height="70" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="770" y="617" class="label" fill="#4a235a">Microsoft OpenTelemetry</text><text x="770" y="640" class="detail" fill="#4a235a">Agent 365 S2S exporter</text>
+  <rect class="box" x="930" y="590" width="200" height="70" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="1030" y="617" class="label" fill="#285c2d">Microsoft Agent 365</text><text x="1030" y="640" class="detail" fill="#285c2d">Observability endpoint</text>
+  <rect class="box" x="1170" y="590" width="170" height="70" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="1255" y="612" class="label" fill="#285c2d">Microsoft routes events</text><text x="1255" y="635" class="detail" fill="#285c2d">Admin Center</text><text x="1255" y="652" class="detail" fill="#285c2d">Purview and Defender</text>
+
+  <line class="edge" x1="330" y1="625" x2="380" y2="625" stroke="#6c8ebf" marker-end="url(#blueArrow)"/>
+  <line class="edge" x1="610" y1="625" x2="660" y2="625" stroke="#9673a6" marker-end="url(#purpleArrow)"/>
+  <line class="edge" x1="880" y1="625" x2="930" y2="625" stroke="#82b366" marker-end="url(#greenArrow)"/>
+  <line class="edge" x1="1130" y1="625" x2="1170" y2="625" stroke="#82b366" marker-end="url(#greenArrow)"/>
+  <path class="edge" d="M685 405 V540 H215 V590" stroke="#d6b656" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+  <path class="edge" d="M960 375 V520 H300 V590" stroke="#9673a6" stroke-dasharray="7 5" marker-end="url(#purpleArrow)"/>
+  <path class="edge" d="M960 455 V550 H770 V590" stroke="#d79b00" stroke-dasharray="7 5" marker-end="url(#goldArrow)"/>
+  <text x="870" y="545" class="edgeLabel">S2S token</text>
+</svg>

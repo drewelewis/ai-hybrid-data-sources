@@ -14,9 +14,9 @@ User workstation
 chat.py
   |
   v
-FastAPI container ----> Agent ID sidecar ----> Microsoft Entra
-  |                            |
-  |                            +-------------> Agent 365 telemetry
+FastAPI container ----> Microsoft Entra Agent ID token exchange
+  |
+  +--------------------> Agent 365 telemetry
   |
   +----> APIM private endpoint ----> Model
   |
@@ -57,12 +57,11 @@ These credentials are not interchangeable.
 
 ### Credential theft
 
-Risk: A blueprint secret or sidecar token is stolen.
+Risk: A blueprint secret or in-memory Agent ID token is stolen.
 
 Controls:
 
 - Prefer federation.
-- Keep sidecar private.
 - Use short-lived local secrets.
 - Rotate and monitor.
 - Never log tokens.
@@ -103,17 +102,17 @@ Controls:
 - Defender risk monitoring.
 - Trace tool calls without recording sensitive payloads.
 
-### Sidecar exposure
+### Token exchange exposure
 
-Risk: Another host calls the token sidecar.
+Risk: Credentials or tokens escape the application process.
 
 Controls:
 
-- No published host port.
-- Private workload network only.
-- Network isolation.
-- Health endpoint contains no secrets.
-- Pin and scan sidecar image.
+- Use the direct exchange only over Microsoft Entra HTTPS endpoints.
+- Keep credentials and final tokens in process memory.
+- Expose only boolean token readiness and sanitized error categories.
+- Never return or log tokens through health or diagnostic endpoints.
+- Restrict host and container access.
 
 ### Telemetry denial of service
 
@@ -163,7 +162,7 @@ tenant and current product documentation.
 ## Security validation
 
 - [ ] No secret appears in source or image layers.
-- [ ] Sidecar port is not published.
+- [ ] No local token endpoint is exposed.
 - [ ] Final token audience and subject are correct.
 - [ ] Agent identity has minimal permissions.
 - [ ] Content recording is disabled.

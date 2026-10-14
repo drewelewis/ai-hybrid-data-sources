@@ -7,9 +7,15 @@ to Microsoft Agent 365 without moving or replacing its Docker-hosted runtime.
 Use it as the reference pattern for onboarding similar agents in this
 repository.
 
-The detailed tenant commands and verification steps remain in the
+The [developer guide](./developers_guide.md) owns the canonical logical design,
+layer responsibilities, implementation methodology, validation gates, and
+Microsoft-guidance crosswalk. The detailed tenant commands and verification
+steps remain in the
 [provisioning runbook](./provisioning_runbook.md), and the telemetry contract
-remains in the [observability reference](./observability_reference.md).
+remains in the [observability reference](./observability_reference.md). The
+concrete application bootstrap, authentication, request, span, and shutdown
+path is documented in the
+[LOB application wiring guide](./lob_app_wiring.md).
 
 ## Selected architecture
 
@@ -168,8 +174,8 @@ shutdown, and does not fail the user request merely because export fails.
 
 For device-code callers, the API cryptographically validates the Entra bearer
 token's signature, issuer, audience, expiry, tenant, and object ID. It then
-exports only a stable SHA-256 hash of the validated tenant and object IDs as
-`user.id`.
+passes a stable SHA-256 hash of the validated tenant and object IDs through
+`CallerDetails(UserDetails(user_id=...))`.
 
 Raw tenant IDs, user object IDs, names, email addresses, and bearer tokens are
 not exported as user attribution.
@@ -179,15 +185,12 @@ not exported as user attribution.
 `A365_RECORD_CONTENT` controls whether prompts, responses, and supported tool
 or inference content are captured.
 
-The current Trading Platform Agent configuration uses full-content mode. This
-can transmit account identifiers, holdings, trade data, SQL, prompts,
-responses, and tool data to Microsoft observability services. Tenant access,
-retention, residency, Defender, and Purview policies must therefore be
-reviewed before using the same setting in another environment.
-
-For a metadata-only deployment, set `A365_RECORD_CONTENT=false` before startup
-and verify that prompt, response, tool argument, and tool result content is
-absent from a sanitized test trace.
+The Trading Platform Agent defaults to metadata-only mode. Set
+`A365_RECORD_CONTENT=true` only for an approved, time-bounded nonproduction
+policy test. Full-content mode can transmit account identifiers, holdings,
+trade data, SQL, prompts, responses, and tool data to Microsoft observability
+services. Review tenant access, retention, residency, Defender, Purview, and
+billing before enabling it, then return the setting to `false`.
 
 ## Runtime configuration
 
@@ -218,7 +221,7 @@ The implementation was validated through:
 - Healthy API, database, and agent startup after container rebuild.
 - Verification that the runtime uses the registered Agent Identity.
 - Successful authenticated chat requests.
-- Agent Registry and Admin Center activity visibility.
+- Agent Registry inventory visibility and Purview Activity Explorer ingestion.
 - A live exporter response with HTTP 200, zero rejected spans, and successful
   sink statuses.
 - Sanitized checks that secrets and raw user identifiers were not logged.

@@ -42,6 +42,14 @@ Agent Identity Blueprint
   +-- Agent Identity: customer-001
 ```
 
+![Agent ID blueprint object relationships](../images/a365-blueprint-object-model.svg)
+
+The diagram focuses only on the object hierarchy: one blueprint has a tenant
+BlueprintPrincipal and can create many separately sponsored Agent Identities.
+Edit the native
+[Draw.io source](../images/a365-blueprint-object-model.drawio) when the model
+changes.
+
 The blueprint:
 
 - Defines the agent type or family.
@@ -364,18 +372,28 @@ The runtime must perform the supported agent token exchange. Using the
 blueprint's ordinary application token directly loses per-instance identity
 and can produce incorrect token claims or authorization failures.
 
+![Agent ID token and Agent 365 telemetry flow](../images/a365-agent-token-flow.svg)
+
+The five-step sequence separates blueprint authentication from the final
+child-identity token used for Agent 365 export. Edit the native
+[Draw.io source](../images/a365-agent-token-flow.drawio) when the token flow
+changes.
+
 ### 9.3 Runtime helpers
 
 Use supported helpers rather than hand-building token exchanges where possible:
 
 - .NET: `Microsoft.Identity.Web.AgentIdentities`.
 - Python, Node.js, Go, Java, and other runtimes: Microsoft Entra ID Auth SDK
-  sidecar.
+  sidecar where appropriate, or a validated direct exchange when the helper
+  does not fit the runtime.
 - Microsoft Graph: provisioning and lifecycle operations when CLI or SDK
   tooling does not fit.
 
-Keep the sidecar accessible only to the agent workload. Do not expose it through
-an ingress, public load balancer, or general-purpose network endpoint.
+The Trading Platform Agent uses a validated direct two-step `fmi_path`
+exchange. If a sidecar is selected for another workload, keep it private to
+that workload and do not expose it through an ingress, public load balancer,
+or general-purpose network endpoint.
 
 ### 9.4 Authentication modes
 
@@ -680,7 +698,7 @@ Avoid these designs:
 - Assuming declared permissions are already consented.
 - Reusing the blueprint application token as the per-agent token.
 - Omitting sponsors.
-- Exposing the Agent ID sidecar publicly.
+- Exposing any Agent ID token helper endpoint publicly.
 - Deleting a blueprint before understanding its child identities.
 - Treating Agent ID as a replacement for application authorization.
 - Assuming registration alone enables observability.
@@ -726,7 +744,7 @@ Avoid these designs:
 - [ ] Is the correct S2S, OBO, or Agentic-User mode selected?
 - [ ] Does the runtime obtain a token for the agent identity?
 - [ ] Are token audience, subject, tenant, and expiry validated?
-- [ ] Is the sidecar private to the workload?
+- [ ] If a token sidecar is used, is it private to the workload?
 
 ### Operations
 
@@ -863,9 +881,10 @@ can authenticate without storing a client secret.
 
 ### What should a Python or Java agent use for runtime token acquisition?
 
-Use the Microsoft Entra ID Auth SDK sidecar when appropriate. It provides a
-language-neutral HTTP interface for token acquisition and validation. Keep it
-private to the agent workload.
+Use the Microsoft Entra ID Auth SDK sidecar when appropriate, or a validated
+direct exchange when required by the runtime. A sidecar provides a
+language-neutral HTTP interface and must remain private to the agent workload.
+The Trading Platform Agent uses a direct two-step `fmi_path` exchange.
 
 ### What should a .NET agent use?
 
@@ -967,4 +986,4 @@ Start with:
 - [Microsoft Entra ID Auth SDK for Agent ID](https://learn.microsoft.com/en-us/entra/msidweb/agent-id-sdk/overview)
 - [Microsoft Agent 365 SDK validation checklist](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/validation-checklist)
 
-Documentation reviewed: October 5, 2026.
+Documentation reviewed: October 14, 2026.

@@ -60,7 +60,7 @@ A mismatch can produce HTTP 403 or telemetry that cannot be attributed.
 
 ## Trading Platform values
 
-| Attribute | Planned value |
+| Attribute | Implemented value |
 |---|---|
 | Agent name | `TradingPlatformAgent` |
 | Service name | `ai-agent-starter-portfolio-manager` |
@@ -76,10 +76,11 @@ email address, account ID, or bearer-token claim as a conversation ID.
 
 When device-code authentication and Agent 365 observability are enabled, the
 API validates the console access token's signature, issuer, audience, expiry,
-tenant, and object ID. The root span `user.id` is the SHA-256 hash of the
-validated Entra tenant and object IDs. This makes invocations from the same
-user correlatable and different users distinguishable without exporting either
-raw identifier. Names, email addresses, and access tokens remain excluded.
+tenant, and object ID. It passes the SHA-256 hash of the validated Entra tenant
+and object IDs through `CallerDetails(UserDetails(user_id=...))`. This makes
+invocations from the same user correlatable and different users distinguishable
+without exporting either raw identifier. Names, email addresses, and access
+tokens remain excluded.
 
 ## Status and errors
 
@@ -97,10 +98,13 @@ Exporter retries must be bounded independently.
 
 ## Content policy
 
-`A365_RECORD_CONTENT` defaults to `true`. Agent 365 receives the user prompt,
-agent response, and content emitted by supported tool and inference
-instrumentation. This can include account IDs, holdings, trade data, SQL, and
-other portfolio information.
+`A365_RECORD_CONTENT` defaults to `false`. Metadata-only operation is the
+baseline for normal development and production.
+
+Set `A365_RECORD_CONTENT=true` only for an approved nonproduction policy test.
+Agent 365 then receives the user prompt, agent response, and content emitted by
+supported tool and inference instrumentation. This can include account IDs,
+holdings, trade data, SQL, and other portfolio information.
 
 Do not place credentials or authentication material in prompts, tool arguments,
 tool results, or model responses. Never export:
@@ -113,9 +117,10 @@ tool results, or model responses. Never export:
 - Database credentials.
 - Full exception messages that could contain any of the above.
 
-Full content recording is intentional for behavioral investigation. Access,
-retention, residency, and downstream Purview/Defender policies must be reviewed
-for the tenant because this telemetry can contain sensitive business data.
+Full-content recording must be time-bounded and intentional. Access, retention,
+residency, and downstream Purview/Defender policies must be approved before the
+test because this telemetry can contain sensitive business data. Return the
+setting to `false` and verify the effective mode when the test is complete.
 
 ## Sampling and cardinality
 
@@ -133,7 +138,7 @@ Record the final sampling policy in the production change record.
 
 ## Export configuration
 
-Planned Python initialization:
+Python initialization:
 
 ```python
 use_microsoft_opentelemetry(
