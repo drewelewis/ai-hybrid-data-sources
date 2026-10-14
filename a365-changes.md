@@ -2033,3 +2033,99 @@ connection strings, or sensitive portfolio content.
 - **Rollback:** Revert the published commit with a new commit and push the
   revert; do not rewrite shared branch history.
 - **Follow-up:** None.
+
+## 2026-10-13 18:07 EDT - Remove recurring P2S route conflict
+
+- **Status:** Failed
+- **Scope:** Workstation | Runtime
+- **Requested by:** User
+- **Purpose:** Restore Trading Platform Agent access to private APIM after
+  model requests began timing out.
+- **Change:** Remove only the active `10.0.0.0/8` route owned by Windows
+  interface 57, `MSFT-AzVPN-Manual`. Leave the P2S connection and all Azure,
+  OpenWrt, tenant, policy, identity, and application state unchanged.
+- **Result:** Read-only validation confirmed that `10.100.2.4` selected
+  `MSFT-AzVPN-Manual` with source `100.96.208.193` and TCP 443 failed. The
+  unelevated route removal returned `Access is denied`. Two attempts to start
+  the exact removal in an elevated one-purpose PowerShell process were
+  canceled at the Windows UAC boundary, so the route remains unchanged.
+- **Validation:** `Find-NetRoute -RemoteIPAddress 10.100.2.4` selected
+  interface 57 and `Test-NetConnection 10.100.2.4 -Port 443` returned
+  `TcpTestSucceeded: False`. Temporary elevation scripts were deleted.
+- **Rollback:** Restore the route with
+  `New-NetRoute -InterfaceIndex 57 -DestinationPrefix 10.0.0.0/8 -NextHop
+  0.0.0.0 -RouteMetric 256`.
+- **Follow-up:** Run the rollback-safe removal command from an administrator
+  PowerShell window, then retest APIM and `/chat`. Review why the P2S client
+  keeps reinstalling a broad `10.0.0.0/8` route that overlaps the
+  Site-to-Site network.
+
+## 2026-10-14 10:15 EDT - Extend console authentication session
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Prevent a long-running Trading Platform Agent console from
+  reusing an expired device-code access token and requiring unnecessarily
+  frequent interactive sign-in.
+- **Change:** Keep the Azure `DeviceCodeCredential` alive for the console
+  process, request a cached or refreshed token before authenticated API
+  commands, close the credential on exit, and add focused regression tests.
+  Do not change tenant token lifetimes, Conditional Access, application
+  permissions, or stored credentials.
+- **Result:** The console now retains one `DeviceCodeCredential` for its
+  process lifetime, requests a cached or refreshed access token before chat
+  and clear-session commands, updates the API authorization header, and closes
+  the credential on exit. This extends the console session through normal
+  access-token renewal without changing Entra token policy.
+- **Validation:** `azure-identity 1.26.0` exposes reusable
+  `DeviceCodeCredential.get_token`. Focused pytest validation passed all eight
+  tests in `test_chat_auth.py` and `test_model_credential.py`. Pylance
+  reported no syntax errors in the changed implementation or tests.
+- **Rollback:** Revert the console authentication and test changes.
+- **Follow-up:** None.
+
+## 2026-10-14 10:20 EDT - Preserve distinct Purview end users
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Ensure Agent 365 and Purview distinguish invocations made by
+  different authenticated users without exporting raw tenant IDs, object IDs,
+  names, or email addresses.
+- **Change:** Pass the validated pseudonymous user ID through the Agent 365
+  SDK's supported `CallerDetails` and `UserDetails` model instead of relying
+  on a generic span attribute. Keep the existing SHA-256 pseudonymization and
+  add focused regression coverage.
+- **Result:** Agent invocations now pass the validated SHA-256 pseudonymous
+  user ID through `CallerDetails(UserDetails(user_id=...))`, which is the
+  installed Agent 365 SDK's supported caller identity model. Raw user claims
+  remain excluded. The redundant generic `user.id` attribute was removed.
+- **Validation:** Runtime inspection of `microsoft-opentelemetry 1.3.9`
+  confirmed `InvokeAgentScope.start(..., caller_details=...)` maps
+  `UserDetails.user_id` to the standardized user identity tag. Thirty-one
+  focused user-identity, Agent 365 observability, and console authentication
+  tests passed. The tests prove that different Entra object IDs generate
+  different pseudonymous IDs. Pylance reported no syntax errors in the
+  changed implementation or tests.
+- **Rollback:** Revert the caller-details integration and tests.
+- **Follow-up:** Restart the API and generate one interaction from each test
+  account, then compare the resulting Purview activity records after
+  ingestion delay.
+
+## 2026-10-14 10:21 EDT - Publish authentication and attribution fixes
+
+- **Status:** Planned
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Publish the validated console token-refresh and Agent 365
+  caller-attribution fixes to the GitHub `main` branch.
+- **Change:** Commit and push the updated console authentication lifecycle,
+  supported Agent 365 caller identity mapping, regression tests, and audit
+  ledger.
+- **Result:** Pending.
+- **Validation:** Verify the commit exists locally, the push succeeds, the
+  worktree is clean, and local `main` matches `origin/main`.
+- **Rollback:** Revert the published commit with a new commit and push the
+  revert; do not rewrite shared branch history.
+- **Follow-up:** Restart the local API before runtime validation.

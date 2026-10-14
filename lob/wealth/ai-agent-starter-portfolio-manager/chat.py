@@ -25,6 +25,7 @@ load_dotenv()
 API_BASE_URL = os.getenv("CHAT_API_URL", "http://127.0.0.1:8989").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("CHAT_REQUEST_TIMEOUT", "180"))
 AUTH_MODE = os.getenv("AZURE_AUTH_MODE", "default").strip().lower()
+_device_code_credential: DeviceCodeCredential | None = None
 
 BANNER = """
 ===========================================================
@@ -161,6 +162,8 @@ def show_device_challenge(
 
 
 async def get_model_access_token() -> str | None:
+    global _device_code_credential
+
     if AUTH_MODE != "device-code":
         return None
 
@@ -173,16 +176,33 @@ async def get_model_access_token() -> str | None:
             "required for device-code authentication."
         )
 
-    credential = DeviceCodeCredential(
-        tenant_id=tenant_id,
-        client_id=client_id,
-        prompt_callback=show_device_challenge,
+    if _device_code_credential is None:
+        _device_code_credential = DeviceCodeCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            prompt_callback=show_device_challenge,
+        )
+
+    token = await asyncio.to_thread(
+        _device_code_credential.get_token,
+        token_scope,
     )
-    try:
-        token = await asyncio.to_thread(credential.get_token, token_scope)
-        return token.token
-    finally:
-        credential.close()
+    return token.token
+
+
+async def refresh_model_access_token(http: aiohttp.ClientSession) -> None:
+    access_token = await get_model_access_token()
+    if access_token:
+        http.headers["Authorization"] = f"Bearer {access_token}"
+
+
+def close_model_access_credential() -> None:
+    global _device_code_credential
+
+    if _device_code_credential is None:
+        return
+    _device_code_credential.close()
+    _device_code_credential = None
 
 
 async def main() -> None:
@@ -239,6 +259,7 @@ async def main() -> None:
                 continue
             if command == "clear":
                 try:
+                    await refresh_model_access_token(http)
                     await request_json(
                         http,
                         "POST",
@@ -252,6 +273,7 @@ async def main() -> None:
 
             print("\nAgent: ", end="", flush=True)
             try:
+                await refresh_model_access_token(http)
                 response = await request_json(
                     http,
                     "POST",
@@ -265,4 +287,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        close_model_access_credential()

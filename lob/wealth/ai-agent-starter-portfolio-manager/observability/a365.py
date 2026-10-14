@@ -357,11 +357,13 @@ class A365Runtime:
         from microsoft.opentelemetry.a365.core import (
             AgentDetails,
             BaggageBuilder,
+            CallerDetails,
             Channel,
             InvokeAgentScope,
             InvokeAgentScopeDetails,
             Request,
             ServiceEndpoint,
+            UserDetails,
         )
 
         conversation_id = _hash_conversation_id(session_id)
@@ -394,9 +396,17 @@ class A365Runtime:
                 port=self.settings.server_port,
             )
         )
+        caller_details = (
+            CallerDetails(user_details=UserDetails(user_id=user_id))
+            if user_id
+            else None
+        )
         with baggage:
             with InvokeAgentScope.start(
-                request, scope_details, details
+                request,
+                scope_details,
+                details,
+                caller_details=caller_details,
             ) as scope:
                 span = getattr(scope, "_span", None)
                 if self.settings.export_debug:
@@ -421,8 +431,6 @@ class A365Runtime:
                     "service.name": self.settings.service_name,
                     "service.version": self.settings.service_version,
                 }
-                if user_id:
-                    attributes["user.id"] = user_id
                 scope.record_attributes(attributes)
                 yield scope
             if self.settings.export_debug:

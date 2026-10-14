@@ -222,10 +222,16 @@ def test_invoke_scope_uses_registered_identity_without_content(monkeypatch):
         def record_attributes(self, attributes):
             captured["attributes"] = attributes
 
-    def fake_start(request, scope_details, agent_details):
+    def fake_start(
+        request,
+        scope_details,
+        agent_details,
+        caller_details=None,
+    ):
         captured["request"] = request
         captured["scope_details"] = scope_details
         captured["agent_details"] = agent_details
+        captured["caller_details"] = caller_details
         return FakeScope()
 
     monkeypatch.setattr(InvokeAgentScope, "start", staticmethod(fake_start))
@@ -244,8 +250,12 @@ def test_invoke_scope_uses_registered_identity_without_content(monkeypatch):
     assert captured["agent_details"].agent_id == (
         "00000000-0000-0000-0000-000000000003"
     )
+    assert (
+        captured["caller_details"].user_details.user_id
+        == pseudonymous_user_id
+    )
     assert captured["attributes"]["a365.content_recording"] is False
-    assert captured["attributes"]["user.id"] == pseudonymous_user_id
+    assert "user.id" not in captured["attributes"]
     assert "gen_ai.conversation.channel" not in captured["attributes"]
 
 
@@ -273,8 +283,14 @@ def test_invoke_scope_records_full_prompt_and_response(monkeypatch):
         def record_response(self, response):
             captured["response"] = response
 
-    def fake_start(request, scope_details, agent_details):
+    def fake_start(
+        request,
+        scope_details,
+        agent_details,
+        caller_details=None,
+    ):
         captured["request"] = request
+        captured["caller_details"] = caller_details
         return FakeScope()
 
     monkeypatch.setattr(InvokeAgentScope, "start", staticmethod(fake_start))
@@ -288,6 +304,10 @@ def test_invoke_scope_records_full_prompt_and_response(monkeypatch):
         record_a365_response(scope, "The account holds several positions.")
 
     assert captured["request"].content == "Show the account holdings"
+    assert (
+        captured["caller_details"].user_details.user_id
+        == "a" * 64
+    )
     assert captured["response"] == "The account holds several positions."
     assert captured["attributes"]["a365.content_recording"] is True
 

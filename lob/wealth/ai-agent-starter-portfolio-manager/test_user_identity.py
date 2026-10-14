@@ -41,6 +41,37 @@ def test_validated_claims_produce_stable_pseudonymous_id(monkeypatch):
     assert OBJECT_ID not in result
 
 
+def test_different_object_ids_produce_different_pseudonymous_ids(monkeypatch):
+    validator = EntraUserTokenValidator(TENANT_ID, TOKEN_SCOPE)
+    monkeypatch.setattr(
+        validator._jwks_client,
+        "get_signing_key_from_jwt",
+        lambda _token: FakeSigningKey(),
+    )
+    object_ids = iter(
+        [
+            "00000000-0000-0000-0000-000000000002",
+            "00000000-0000-0000-0000-000000000004",
+        ]
+    )
+
+    def decode_token(*_args, **_kwargs):
+        return {
+            "aud": TOKEN_SCOPE.removesuffix("/.default"),
+            "exp": 4102444800,
+            "iss": f"https://login.microsoftonline.com/{TENANT_ID}/v2.0",
+            "tid": TENANT_ID,
+            "oid": next(object_ids),
+        }
+
+    monkeypatch.setattr(jwt, "decode", decode_token)
+
+    first = validator.pseudonymous_user_id("header.payload.signature")
+    second = validator.pseudonymous_user_id("header.payload.signature")
+
+    assert first != second
+
+
 def test_invalid_signature_is_rejected(monkeypatch):
     validator = EntraUserTokenValidator(TENANT_ID, TOKEN_SCOPE)
     monkeypatch.setattr(
