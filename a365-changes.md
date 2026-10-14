@@ -2563,7 +2563,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-14 13:00 EDT - Publish A365 engineering guides and fixes
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Publish the completed Agent 365 developer documentation,
@@ -2572,10 +2572,21 @@ connection strings, or sensitive portfolio content.
 - **Change:** Stage the current A365-related documentation, images, runtime,
   dependency, Compose, and test changes; create one commit on `main` with the
   required co-author trailer; and push it to `origin/main`.
-- **Result:** Pending.
-- **Validation:** Confirm the staged file set contains no secrets or unrelated
-  files, rerun `git diff --check`, create the commit, push successfully, and
-  verify local `HEAD` matches `origin/main`.
-- **Rollback:** Revert the published commit with a new commit; do not rewrite
-  shared history.
-- **Follow-up:** Pending.
+- **Result:** Published commit
+  `2f803c35b64b27cc48a66710f91d3c854bd249a9` to `origin/main`. The commit
+  contains 29 files with the canonical developer guide, three component
+  portal guides, LOB wiring guide, corrected blueprint filename, six diagram
+  files, synchronized A365 references, metadata-only defaults, explicit
+  `PyJWT[crypto]`, token transport failure handling, and regression coverage.
+- **Validation:** The staged manifest contained only the intended A365,
+  diagram, and Trading Platform Agent files. No `.env`, secret, key, PEM, or
+  compiled infrastructure file was staged. `git diff --cached --check`
+  passed; the commit included the required co-author trailer; the push
+  completed successfully; and local `HEAD` exactly matched `origin/main` at
+  `2f803c35b64b27cc48a66710f91d3c854bd249a9`.
+- **Rollback:** Revert
+  `2f803c35b64b27cc48a66710f91d3c854bd249a9` and its ledger-status follow-up
+  with new commits; do not rewrite shared history.
+- **Follow-up:** Continue the explicitly documented production identity,
+  Admin Center Activity, Purview policy-evaluation, and Defender-ingestion
+  validation gates.
