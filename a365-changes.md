@@ -2115,7 +2115,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-14 10:21 EDT - Publish authentication and attribution fixes
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Publish the validated console token-refresh and Agent 365
@@ -2123,9 +2123,10 @@ connection strings, or sensitive portfolio content.
 - **Change:** Commit and push the updated console authentication lifecycle,
   supported Agent 365 caller identity mapping, regression tests, and audit
   ledger.
-- **Result:** Pending.
-- **Validation:** Verify the commit exists locally, the push succeeds, the
-  worktree is clean, and local `main` matches `origin/main`.
+- **Result:** Created commit `fbf2202` (`Fix Agent 365 session and user
+  attribution`) with six changed files and pushed it to
+  `drewelewis/ai-hybrid-data-sources` on `main`.
+- **Validation:** GitHub accepted the push from `9ed0832` to `fbf2202`.
 - **Rollback:** Revert the published commit with a new commit and push the
   revert; do not rewrite shared branch history.
 - **Follow-up:** Restart the local API before runtime validation.
