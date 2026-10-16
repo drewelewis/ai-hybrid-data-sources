@@ -37,17 +37,19 @@ The Python runtime performs the Agent ID two-step `fmi_path` exchange directly:
 
 The final token is cached in memory until shortly before expiry. Tokens and
 credentials are never written to logs or telemetry. The current implementation
-requires a blueprint client secret. Production managed identity and workload
-identity federation are the target design but require a separate runtime
-implementation before rollout.
+requires a blueprint client secret. An on-premises `prd` certificate or
+approved workload-federation design is the target but requires a separate
+runtime implementation before rollout.
 
 ## Secret sources
 
-| Environment | Approved source |
-|---|---|
-| Local development | Git-ignored `.env` or developer secret store |
-| CI validation | Protected pipeline secret |
-| Azure production | Target: Key Vault and managed identity/federation; not yet implemented |
+| Environment | Hosting | Approved source |
+|---|---|---|
+| `local` | On premises | Git-ignored `.env` or developer secret store |
+| `dev` | On premises | Approved nonproduction secret store or protected deployment injection |
+| `tst` | On premises | Approved test secret store or protected deployment injection |
+| `prd` | On premises | Approved production secret store with certificate or workload federation as the target; not yet implemented |
+| CI validation | Build platform only; not an agent runtime | Protected pipeline secret |
 
 The blueprint secret is never added to:
 

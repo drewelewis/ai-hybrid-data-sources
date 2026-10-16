@@ -179,6 +179,13 @@ Agent 365 observability does not automatically make every interaction subject
 to every DLP policy. Coverage depends on the supported workload, event type,
 policy location, content availability, and licensing.
 
+The repeatable verification harness injects one or two safe randomized exploit
+attempts per run. With `--include-policy-scenarios`, at least one is a
+synthetic payment-card or unethical-behavior candidate and the harness
+requires content recording. Use the report's UTC window and scenario names to
+find exact rows. Its expected-signal labels are hypotheses; only Purview
+policy details prove evaluation or a match.
+
 ## 5. Insider Risk Management
 
 Use **Insider Risk Management** for risk indicators, policy matches, alerts,
@@ -238,6 +245,30 @@ be absent unless an explicitly approved, time-bounded nonproduction test set
 
 Never enable full content merely to make a Purview screen more informative.
 
+## Policy automation boundary
+
+Purview compliance policy objects are not Azure Resource Manager resources
+and do not belong in this repository's Bicep deployment.
+
+| Policy family | Supported automation boundary |
+|---|---|
+| Data Loss Prevention | Security & Compliance PowerShell with `New-DlpCompliancePolicy`, `New-DlpComplianceRule`, and corresponding `Set-*` cmdlets |
+| Communication Compliance | Manage in the Purview portal; current Microsoft guidance says PowerShell is not supported for policy management |
+| Insider Risk Management | Manage in the Purview portal; no supported policy CRUD API is documented |
+| DSPM for AI recommendations and one-click policies | Initiate in the Purview portal; manage any resulting policy through its supported native surface |
+
+DLP automation is configuration as code, not Bicep. Unattended execution uses
+the Exchange Online Management module and app-only Security & Compliance
+PowerShell authentication, which requires separately approved application
+permissions, certificate handling, Purview roles, and rollback. Do not add
+those permissions merely to make a verification test repeatable.
+
+The tenant already has approved interaction-capture, unethical-behavior, and
+risky-AI policy work recorded in the
+[Agent 365 change ledger](../../a365-changes.md). Run the synthetic policy
+scenarios against those controls and verify exact-row attribution before
+proposing an additional or stronger policy.
+
 ## Roles and access boundaries
 
 Purview access is solution-specific:
@@ -272,13 +303,13 @@ Read-only validation on October 14, 2026 established:
 
 | Assertion | Current state |
 |---|---|
-| `Invoke Agent` activity for `TradingPlatformAgent` appears in Activity Explorer | Verified |
+| `Invoke Agent` activity for `TradingPlatformAgent` appears in Activity Explorer | Verified; the October 14 controlled run produced 22 `Local-cli` rows in its UTC window |
 | Unified DSPM opens | Verified |
 | Unified AI observability opens | Verified |
 | Unified AI observability lists this agent as a local agent | Not verified; current local-agent count is zero |
-| Metadata-only is the runtime default | Verified |
+| Metadata-only is the repository and documented runtime default | Verified; the October 14 controlled policy test explicitly kept content recording enabled for synthetic prompts |
 | Purview policies exist for approved Agent 365 testing | Verified |
-| Policy-generated warning, recommendation, or alert exists | Awaiting evaluation/ingestion window |
+| Policy-generated warning, recommendation, or alert exists for the controlled run | Awaiting exact-row attribution and the longer evaluation/ingestion window |
 | Insider Risk alert access is available | Role-dependent; assignment and session propagation must be checked |
 
 Do not treat the unified AI observability local-agent gap as proof that the
@@ -303,5 +334,9 @@ aggregation or classification question.
 - [Data Security Posture Management](https://learn.microsoft.com/en-us/purview/data-security-posture-management-learn-about)
 - [Activity Explorer](https://learn.microsoft.com/en-us/purview/data-classification-activity-explorer)
 - [Data Loss Prevention](https://learn.microsoft.com/en-us/purview/dlp-learn-about-dlp)
+- [Microsoft Purview and Agent 365](https://learn.microsoft.com/en-us/purview/ai-agent-365)
+- [Manage Communication Compliance policies](https://learn.microsoft.com/en-us/purview/communication-compliance-policies)
+- [Connect to Security & Compliance PowerShell](https://learn.microsoft.com/en-us/powershell/exchange/scc-powershell)
+- [App-only authentication for Exchange Online PowerShell](https://learn.microsoft.com/en-us/powershell/exchange/app-only-auth-powershell-v2)
 - [Insider Risk Management](https://learn.microsoft.com/en-us/purview/insider-risk-management)
 - [Microsoft Purview Audit](https://learn.microsoft.com/en-us/purview/audit-solutions-overview)

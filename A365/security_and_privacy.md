@@ -136,6 +136,38 @@ Controls:
 - No broad exception serialization.
 - No telemetry enrichment from bearer-token claims.
 
+## Controlled policy-validation exception
+
+Raw Agent 365 activity in Entra sign-ins, Purview Activity Explorer, and
+Defender Advanced Hunting does not require prompt or response recording.
+Keep the normal runtime metadata-only.
+
+Defender `CloudAppEvents` also depends on the tenant's Microsoft 365 connector
+data path. That connector is infrastructure for hunting ingestion, not a
+reason to capture prompt or response content and not a substitute for Agent
+365 telemetry.
+
+The fixed `a365_verify.py` nonproduction policy-classification test requires
+temporary `A365_RECORD_CONTENT=true`. It runs five realistic conversation
+rounds and one or two randomly selected safe exploit attempts using
+inaccessible credentials, generated nonexistent accounts, and the reserved
+`security-test.invalid` domain. The pool also contains a standard synthetic
+payment-card pattern and a fictional misconduct scenario, guarantees at least
+one content-policy candidate, refuses to start when health reports content
+recording disabled, and stores only scenario names, expected signal
+categories, and timing locally.
+
+The harness never performs an authentication attack, uses a real secret,
+contacts an external destination, queries a real account during an exploit,
+or invokes a data-changing tool. A random seed is stored so the exact
+selection and placement can be reproduced without storing prompt text.
+
+Before enabling the exception, record the approval, test window, expected
+policy, retention implications, and rollback in `a365-changes.md`. After the
+run, restore `A365_RECORD_CONTENT=false`, restart the API, and confirm health
+reports `content_recording: false`. Deleting the local evidence does not
+delete telemetry already accepted by Microsoft 365 services.
+
 ## Retention and residency decisions
 
 Before production, the tenant owner must record:
@@ -153,7 +185,8 @@ tenant and current product documentation.
 ## Secret handling
 
 - Keep `.env`, generated credentials, certificates, and keys git-ignored.
-- Use Key Vault and managed identity in Azure production.
+- Use an approved enterprise secret store and certificate or approved workload
+  federation for the on-premises `prd` runtime.
 - Do not place secrets in Compose defaults.
 - Do not send secrets to support.
 - Do not store secrets in A365 generated non-secret config.

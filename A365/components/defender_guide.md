@@ -94,6 +94,12 @@ Interpret the result carefully:
 The table contains activity from many applications. A populated table is not
 by itself proof of Agent 365 ingestion.
 
+Current Defender Security for AI setup guidance requires the Microsoft 365
+connector data path with **Microsoft Entra ID Management events** and
+**Microsoft 365 activities** enabled before relying on `CloudAppEvents`.
+Treat that as one-time Defender tenant setup, not as a custom detection and
+not as a reason to enable prompt or response recording.
+
 ### 2.2 Search for Agent 365 actions
 
 Use the registered Agent Identity application ID:
@@ -181,6 +187,30 @@ telemetry and should not be used to manufacture evidence that ingestion works.
 Keep detection logic metadata-focused where possible. Do not place prompt text
 or sensitive tool payloads in alert titles or descriptions.
 
+The verification harness's randomized exploit attempts are useful test
+traffic, but `CloudAppEvents` may expose only invocation, inference, tool, and
+identity metadata. A prompt that reads like an attack does not automatically
+create a Defender alert. Correlate the generated UTC-bounded query first, then
+decide whether a supported built-in protection or separately approved custom
+detection should classify that activity.
+
+### 3.1 Automation boundary
+
+Ad-hoc hunting and persisted detections use different Microsoft Graph
+surfaces:
+
+| Artifact | Supported automation | Stability |
+|---|---|---|
+| Run an Advanced Hunting query | `POST /v1.0/security/runHuntingQuery` with `ThreatHunting.Read.All` | Microsoft Graph v1.0 |
+| Create a persisted custom detection | `POST /beta/security/rules/detectionRules` with `CustomDetection.ReadWrite.All` | Microsoft Graph beta |
+| Defender Security for AI real-time protection rule | Defender portal | Preview; no documented Graph or PowerShell creation API |
+
+These are Microsoft Defender control-plane objects, not Azure Resource Manager
+resources. Do not add them to this repository's Bicep deployment. A future
+configuration-as-code script can manage a beta custom detection only after its
+KQL, schedule, severity, response action, permissions, and rollback are
+separately approved. Disable the rule before deleting it during rollback.
+
 ## 4. Incidents, alerts, and cases
 
 Use **Incidents**, **Alerts**, and **Cases** after a Defender analytic,
@@ -262,14 +292,15 @@ Read-only validation on October 14, 2026 established:
 |---|---|
 | Advanced Hunting opens | Verified |
 | `CloudAppEvents` schema resolves | Verified |
-| `CloudAppEvents` has Agent 365 rows for this agent | Not verified; current query returned no rows |
+| `CloudAppEvents` has Agent 365 rows for this agent | Verified; the October 14 controlled run returned 12 exact-Agent-ID rows: eight `InvokeAgent` and four `InferenceCall` |
 | Security Dashboard for AI opens | Verified |
 | Dashboard inventory totals identify this exact local agent | Not established |
-| Approved Agent 365 custom detection exists | Not created because source rows are absent |
+| Approved Agent 365 custom detection exists | Not created; the source rows now exist, but detection intent, query, severity, schedule, and response actions still require approval |
 | Defender alert or incident exists for this agent | Not verified |
 
-Purview Activity Explorer ingestion does not prove Defender indexing. Keep the
-Defender result marked blocked until matching rows are present.
+Tool actions from the controlled run were not visible in the immediate
+Defender result even though Purview exposed tool telemetry. Keep tool-action
+coverage and alert generation as separate preview-dependent assertions.
 
 ## Common mistakes
 
@@ -289,4 +320,7 @@ Defender result marked blocked until matching rows are present.
 - [CloudAppEvents schema](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table)
 - [Advanced Hunting overview](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-overview)
 - [Custom detection rules](https://learn.microsoft.com/en-us/defender-xdr/custom-detection-rules)
+- [Create a detection rule with Microsoft Graph beta](https://learn.microsoft.com/en-us/graph/api/security-rulesroot-post-detectionrules?view=graph-rest-beta)
+- [Enable Defender Security for AI](https://learn.microsoft.com/en-us/defender-xdr/security-for-ai/get-started-defender-security-for-ai)
+- [Defender Security for AI real-time protection](https://learn.microsoft.com/en-us/defender-xdr/security-for-ai/ai-agent-real-time-protection)
 - [Agent 365 validation checklist](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/validation-checklist)

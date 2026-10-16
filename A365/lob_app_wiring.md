@@ -83,16 +83,16 @@ processing.
 
 | Concern | Reference file | Responsibility |
 |---|---|---|
-| Process bootstrap | [main.py](../lob/wealth/ai-agent-starter-portfolio-manager/main.py) | Initializes Agent 365 observability before Uvicorn imports instrumented modules |
-| Interactive client | [chat.py](../lob/wealth/ai-agent-starter-portfolio-manager/chat.py) | Performs device-code authentication, refreshes the user token, and calls `/chat` |
-| API request lifecycle | [api/main.py](../lob/wealth/ai-agent-starter-portfolio-manager/api/main.py) | Validates the caller, opens the root span, runs the agent, and records success or failure |
-| User validation | [api/user_identity.py](../lob/wealth/ai-agent-starter-portfolio-manager/api/user_identity.py) | Validates Entra token claims and produces the pseudonymous user ID |
-| Agent construction | [agents/trading_platform_agent.py](../lob/wealth/ai-agent-starter-portfolio-manager/agents/trading_platform_agent.py) | Binds the registered Agent ID to the Microsoft Agent Framework `ChatAgent` |
-| Telemetry runtime | [observability/a365.py](../lob/wealth/ai-agent-starter-portfolio-manager/observability/a365.py) | Handles Agent 365 token exchange, exporter configuration, spans, content, status, and flush |
-| Configuration | [LOB application README](../lob/wealth/ai-agent-starter-portfolio-manager/README.md) | Documents runtime settings without storing secrets |
-| Observability tests | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) | Verifies exporter, scope, content, and identity behavior |
-| User identity tests | [test_user_identity.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_user_identity.py) | Verifies validation and pseudonymization |
-| Console auth tests | [test_chat_auth.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_chat_auth.py) | Verifies token reuse, refresh, and credential cleanup |
+| Process bootstrap | [main.py](../lob/wealth/portfolio-manager/main.py) | Initializes Agent 365 observability before Uvicorn imports instrumented modules |
+| Interactive client | [chat.py](../lob/wealth/portfolio-manager/chat.py) | Performs device-code authentication, refreshes the user token, and calls `/chat` |
+| API request lifecycle | [api/main.py](../lob/wealth/portfolio-manager/api/main.py) | Validates the caller, opens the root span, runs the agent, and records success or failure |
+| User validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validates Entra token claims and produces the pseudonymous user ID |
+| Agent construction | [agents/trading_platform_agent.py](../lob/wealth/portfolio-manager/agents/trading_platform_agent.py) | Binds the registered Agent ID to the Microsoft Agent Framework `ChatAgent` |
+| Telemetry runtime | [observability/a365.py](../lob/wealth/portfolio-manager/observability/a365.py) | Handles Agent 365 token exchange, exporter configuration, spans, content, status, and flush |
+| Configuration | [LOB application README](../lob/wealth/portfolio-manager/README.md) | Documents runtime settings without storing secrets |
+| Observability tests | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) | Verifies exporter, scope, content, and identity behavior |
+| User identity tests | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) | Verifies validation and pseudonymization |
+| Console auth tests | [test_chat_auth.py](../lob/wealth/portfolio-manager/test_chat_auth.py) | Verifies token reuse, refresh, and credential cleanup |
 
 ## 1. Bootstrap telemetry before the application
 

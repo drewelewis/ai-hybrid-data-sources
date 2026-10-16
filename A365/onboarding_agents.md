@@ -132,8 +132,8 @@ attributing it to the Registry entry.
 
 The implementation is in:
 
-- `../lob/wealth/ai-agent-starter-portfolio-manager/agents/trading_platform_agent.py`
-- `../lob/wealth/ai-agent-starter-portfolio-manager/observability/a365.py`
+- `../lob/wealth/portfolio-manager/agents/trading_platform_agent.py`
+- `../lob/wealth/portfolio-manager/observability/a365.py`
 
 ### 6. Initialize Microsoft OpenTelemetry
 

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "APP_DIR=%~dp0lob\wealth\ai-agent-starter-portfolio-manager"
+set "APP_DIR=%~dp0lob\wealth\portfolio-manager"
 set "PYTHON=%APP_DIR%\.venv\Scripts\python.exe"
 
 if not exist "%PYTHON%" (

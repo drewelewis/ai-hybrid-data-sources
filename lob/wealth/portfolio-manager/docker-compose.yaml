@@ -1,3 +1,5 @@
+name: ai-agent-starter-portfolio-manager
+
 services:
 
   # AI Agent Starter - FastAPI server with Microsoft Agent Framework

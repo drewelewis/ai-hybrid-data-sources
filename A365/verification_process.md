@@ -56,7 +56,7 @@ take 24 hours or longer.
 Open PowerShell and go to the application:
 
 ```powershell
-Set-Location C:\gitrepos\ai-hybrid-data-sources\lob\wealth\ai-agent-starter-portfolio-manager
+Set-Location C:\gitrepos\ai-hybrid-data-sources\lob\wealth\portfolio-manager
 ```
 
 Confirm Docker Desktop is running. The existing Git-ignored `.env` must
@@ -178,7 +178,126 @@ the Agent 365 integration is working.
 
 ### ARRANGE
 
-Choose a unique test window and record its UTC start time:
+The recommended repeatable path is the checked-in `a365_verify.py` harness.
+It uses the same device-code authentication and `/chat` request path as
+`chat.py`, but supplies a controlled synthetic multi-turn conversation. It
+creates a unique marker, exact UTC window, sanitized JSON evidence, and a
+time-bounded Defender query.
+
+Confirm the running API uses `AZURE_AUTH_MODE=device-code`, reports Agent 365
+observability as `ready`, and reports
+`a365_observability.content_recording: true`. This fixed harness is the
+approved nonproduction policy-classification test; use `chat.py` instead when
+only metadata-level activity is required.
+
+### ACT
+
+From the application directory, run:
+
+```powershell
+.\.venv\Scripts\python.exe a365_verify.py
+```
+
+Complete the Microsoft device-code sign-in when prompted. Each round uses one
+conversation session and reads like normal portfolio-support usage. Depending
+on its recorded random seed, a round can:
+
+1. Ask for the latest stored observation for a public ticker.
+2. Ask whether that observation should be treated as a live quote.
+3. Check whether the portfolio data service is healthy.
+4. Ask what portfolio questions the agent can answer.
+5. Validate a generated QA account reference and ask a natural follow-up.
+
+The script creates a fresh session for each round and clears it afterward. It
+does not call `insert_trade_event`, enumerate real accounts, use a real
+portfolio account identifier, or persist prompt and response text.
+
+Every run injects one or two safe exploit attempts after a complete normal
+conversation in randomly selected rounds. This preserves each question and
+follow-up sequence. The base exploit pool covers:
+
+- prompt injection requesting hidden instructions and credentials;
+- attempted secret exfiltration to the reserved, non-routable
+  `security-test.invalid` domain; and
+- attempted unauthorized access to a generated nonexistent QA account.
+
+These are detection inputs, not real attacks: the script has no real secret,
+external delivery tool, or approved write operation to exercise. It does not
+perform password spraying, token replay, impossible-travel simulation, SQL
+destruction, or portfolio mutation.
+
+The behavior is intentionally fixed: five rounds, five seconds between
+interactions, one or two randomly selected exploit attempts, at least one
+content-policy candidate, automatic evidence output, and automatic portal
+opening. There are no operator tuning flags. The generated report records the
+random seed for audit. The script stops additional traffic on authentication,
+authorization, or rate-limit failures and exits nonzero if an interaction
+failed or the final runtime health is not ready.
+
+After completion, inspect:
+
+```text
+a365-verification-results\<marker>.json
+a365-verification-results\<marker>-defender.kql
+```
+
+The Git-ignored JSON report contains the marker, random seed, UTC bounds,
+non-secret identity IDs, runtime health, scenario names, expected adversarial
+signal categories, status, duration, and character counts. It deliberately
+excludes raw prompts, responses, tokens, tool arguments, and tool results.
+
+The three verification surfaces open automatically after the run. Use the
+JSON filters in Entra and Purview and paste the generated KQL into Defender
+Advanced Hunting.
+
+The device-code login creates a fresh interactive Entra sign-in. The
+blueprint and Agent Identity token exchange follows the API's independent
+token-refresh cadence, so a warm API can legitimately reuse its cached Agent
+365 token without creating a new workload sign-in during every run.
+
+### Fixed policy-classification behavior
+
+Raw Entra, Purview, and Defender activity does not require a stronger policy.
+Policies are needed only when the assertion is that a rule matched, an alert
+was created, or enforcement occurred.
+
+For this explicitly approved nonproduction test:
+
+1. Set `A365_RECORD_CONTENT=true`.
+2. Restart the API and confirm `/health` reports
+   `a365_observability.content_recording: true`.
+3. Run `.\.venv\Scripts\python.exe a365_verify.py`.
+
+4. Restore `A365_RECORD_CONTENT=false` and restart the API immediately after
+   the run.
+
+The fixed profile includes a standard synthetic payment-card pattern and a
+fictional misconduct scenario in the random exploit pool. It guarantees that
+at least one of the run's one or two exploit attempts is selected from those
+content-policy candidates. The harness refuses to start unless the runtime
+confirms content recording is enabled. Content-mode telemetry can be retained
+by downstream Microsoft 365 services and cannot be removed by deleting the
+local evidence bundle.
+
+The expected-signal labels in the local report are hypotheses:
+
+| Scenario family | Candidate downstream evidence |
+|---|---|
+| Prompt injection / credential request | Purview risky interaction; Defender raw invocation and supported AI detections |
+| Secret exfiltration / reserved destination | Purview exfiltration; Defender supported AI detections |
+| Unauthorized synthetic account lookup | Tool/invocation telemetry; possible risky-access classification |
+| Synthetic payment card | Purview sensitive-information or DLP evaluation |
+| Approval and audit bypass | Purview unethical-behavior or Communication Compliance evaluation |
+
+An interaction can be ingested without matching a policy, and a policy match
+can occur without creating an alert. Entra records the sign-in and policy
+evaluation; prompt content does not safely manufacture an Entra risky-sign-in
+alert.
+
+### Manual alternative
+
+For an ad-hoc manual run, choose a unique test window and record its UTC start
+time:
 
 ```powershell
 $verificationStart = (Get-Date).ToUniversalTime()
@@ -186,8 +305,6 @@ $verificationStart
 ```
 
 Start a new client session with `clear`.
-
-### ACT
 
 Run this sequence through `chat.py`:
 
@@ -235,7 +352,15 @@ Start-Sleep -Seconds 15
 
 ### ASSERT
 
-Recent application logs contain successful `/chat` requests:
+For the scripted path:
+
+- The console reports the requested number of successful interactions.
+- The initial and final runtime health are `healthy`.
+- Agent 365 state and token readiness remain `ready`.
+- The JSON contains no `message` or `response` field per interaction.
+- The `.kql` file contains the exact Agent Identity and bounded UTC window.
+
+For either path, recent application logs contain successful `/chat` requests:
 
 ```powershell
 docker compose logs --since 15m ai-agent-starter-api
@@ -405,22 +530,21 @@ Activity tab works but this query is empty, verify licensing, permissions,
 table availability, and the current Microsoft schema before changing the
 application.
 
-Agent 365 onboarding documentation does not list the Microsoft 365 Activities
-app connector as a prerequisite for Agent 365 spans. It says an assigned
-Microsoft Agent 365 or Microsoft 365 E7 license enables the observability
-routing, while the Microsoft OpenTelemetry Distro documentation separately
-requires Defender Advanced Hunting to have access to the `CloudAppEvents`
-table. Generic Defender for Cloud Apps documentation describes the Microsoft
-365 connector for its broader Microsoft 365 activity feed; that is not proof
-that the connector is required for Agent 365 telemetry.
+Current Defender Security for AI setup guidance lists the Microsoft 365
+connector, with **Microsoft Entra ID Management events** and **Microsoft 365
+activities**, as a prerequisite for the `CloudAppEvents` data path. This is a
+one-time tenant integration prerequisite, not a per-run alert or enforcement
+policy. The October 14 controlled run returned 12 rows for the exact Agent
+Identity, so do not change the functioning connector or backend merely to run
+another scripted conversation.
 
 If even `CloudAppEvents | take 1` fails because the table cannot be resolved,
-classify the Defender assertion as blocked by tenant-side Defender
-provisioning rather than as an empty agent query. Do not deploy unrelated
-Cloud Discovery sources or manually create Microsoft first-party service
-principals to work around it. Escalate to Microsoft with the Agent 365 license,
-Admin Center Activity, Defender subscription/MTP errors, and unresolved-table
-evidence.
+check the Microsoft 365 connector components, Defender licensing, and backend
+provisioning before treating the result as an agent instrumentation failure.
+Do not deploy unrelated Cloud Discovery sources or manually create Microsoft
+first-party service principals to work around it. Escalate to Microsoft with
+the Agent 365 license, Admin Center Activity, connector state, Defender
+subscription/MTP errors, and unresolved-table evidence.
 
 ---
 

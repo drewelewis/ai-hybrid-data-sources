@@ -138,6 +138,7 @@ APIM --[MCP tool result {response: "..."}]--> Client
 .
 ├── main.py                          # Uvicorn entry point (port 8989)
 ├── chat.py                          # Interactive CLI chat client
+├── a365_verify.py                   # Repeatable synthetic Agent 365 conversation
 ├── requirements.txt                 # Python dependencies
 ├── dockerfile                       # Production container image (python:3.11-slim)
 ├── docker-compose.yaml              # Local stack: API + PostgreSQL + Adminer
@@ -723,6 +724,50 @@ different running API instance.
 The React and Python clients share the APIM token-limit counter when they use
 the same APIM subscription and model. If APIM returns HTTP 429, the CLI displays
 the `Retry-After` duration and does not retry automatically.
+
+### Repeatable Agent 365 Verification
+
+Use the scripted conversation harness to generate a longer, reproducible batch
+for Microsoft Entra, Microsoft Purview, and Microsoft Defender:
+
+```powershell
+.\.venv\Scripts\python.exe a365_verify.py
+```
+
+The harness uses the same device-code authentication and `/chat` path as
+`chat.py`. It has one fixed operator profile: five conversation rounds, a
+five-second delay between interactions, policy-oriented synthetic scenarios,
+automatic evidence output, and automatic opening of the Entra, Purview, and
+Defender portals. Each round behaves like an ordinary user: it asks about a
+public ticker observation, checks service health, asks a follow-up, or
+validates a generated QA account reference. It never calls a data-changing
+tool or uses a real account identifier.
+
+Every run appends one or two randomly selected safe exploit attempts after a
+complete normal conversation in randomly selected rounds. These can request
+hidden instructions, credential disclosure, exfiltration to the reserved
+`security-test.invalid` domain, or unauthorized access to a generated
+nonexistent account. The content-policy pool also includes a standard
+synthetic payment-card pattern and fictional misconduct. At least one selected
+attempt targets a content-policy category. The run records its random seed in
+the evidence bundle for audit.
+
+The command prints every synthetic turn and response. It also writes a
+Git-ignored `a365-verification-results` bundle containing:
+
+- the marker and exact UTC correlation window;
+- sanitized interaction status and timing, without prompt or response text;
+- Entra and Purview portal filters; and
+- a time-bounded Defender Advanced Hunting query.
+
+This is an explicitly approved nonproduction policy-classification test, so
+the running API must report `A365_RECORD_CONTENT=true`. The command stops
+before sign-in if content recording is disabled. Restore
+`A365_RECORD_CONTENT=false` and restart the API immediately afterward.
+Expected signals in the JSON report are hypotheses for correlation, not proof
+that a rule matched or an alert was created. See the
+[Agent 365 verification process](../../../A365/verification_process.md) for
+the cross-product assertions and ingestion delays.
 
 ---
 

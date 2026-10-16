@@ -66,7 +66,7 @@ Current validation status:
 | Admin Center inventory | Verified |
 | Admin Center per-agent Activity rendering | Requires conclusive verification |
 | Defender `CloudAppEvents` Agent 365 rows | Not yet present |
-| Production managed identity or federation | Target design, not implemented |
+| On-premises `prd` certificate or federation | Target design, not implemented |
 
 ## 3. Choose the correct Agent 365 integration path
 
@@ -235,16 +235,16 @@ only for an approved, time-bounded nonproduction policy test.
 
 | Concern | Reference file | Key responsibility |
 |---|---|---|
-| Process bootstrap | [main.py](../lob/wealth/ai-agent-starter-portfolio-manager/main.py) | Initialize telemetry before Uvicorn imports the API |
-| Agent construction | [agents/trading_platform_agent.py](../lob/wealth/ai-agent-starter-portfolio-manager/agents/trading_platform_agent.py) | Bind Agent ID and define model, instructions, and tools |
-| Request lifecycle | [api/main.py](../lob/wealth/ai-agent-starter-portfolio-manager/api/main.py) | Validate caller and wrap `agent.run` in one root scope |
-| Caller validation | [api/user_identity.py](../lob/wealth/ai-agent-starter-portfolio-manager/api/user_identity.py) | Validate Entra token and derive pseudonymous caller ID |
-| Telemetry runtime | [observability/a365.py](../lob/wealth/ai-agent-starter-portfolio-manager/observability/a365.py) | S2S authentication, scope creation, exporter, status, and flush |
-| Interactive client | [chat.py](../lob/wealth/ai-agent-starter-portfolio-manager/chat.py) | Acquire and refresh the human user's device-code token |
-| Business operations | [operations/trading_platform_operations.py](../lob/wealth/ai-agent-starter-portfolio-manager/operations/trading_platform_operations.py) | PostgreSQL-backed LOB operations |
-| Tool adapters | [tools/trading_platform_tool.py](../lob/wealth/ai-agent-starter-portfolio-manager/tools/trading_platform_tool.py) | Expose business operations as agent functions |
-| Container configuration | [docker-compose.yaml](../lob/wealth/ai-agent-starter-portfolio-manager/docker-compose.yaml) | Pass environment-specific settings |
-| Safe example configuration | [env.sample](../lob/wealth/ai-agent-starter-portfolio-manager/env.sample) | Document non-secret defaults |
+| Process bootstrap | [main.py](../lob/wealth/portfolio-manager/main.py) | Initialize telemetry before Uvicorn imports the API |
+| Agent construction | [agents/trading_platform_agent.py](../lob/wealth/portfolio-manager/agents/trading_platform_agent.py) | Bind Agent ID and define model, instructions, and tools |
+| Request lifecycle | [api/main.py](../lob/wealth/portfolio-manager/api/main.py) | Validate caller and wrap `agent.run` in one root scope |
+| Caller validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validate Entra token and derive pseudonymous caller ID |
+| Telemetry runtime | [observability/a365.py](../lob/wealth/portfolio-manager/observability/a365.py) | S2S authentication, scope creation, exporter, status, and flush |
+| Interactive client | [chat.py](../lob/wealth/portfolio-manager/chat.py) | Acquire and refresh the human user's device-code token |
+| Business operations | [operations/trading_platform_operations.py](../lob/wealth/portfolio-manager/operations/trading_platform_operations.py) | PostgreSQL-backed LOB operations |
+| Tool adapters | [tools/trading_platform_tool.py](../lob/wealth/portfolio-manager/tools/trading_platform_tool.py) | Expose business operations as agent functions |
+| Container configuration | [docker-compose.yaml](../lob/wealth/portfolio-manager/docker-compose.yaml) | Pass environment-specific settings |
+| Safe example configuration | [env.sample](../lob/wealth/portfolio-manager/env.sample) | Document non-secret defaults |
 
 ## 7. Implementation methodology
 
@@ -552,7 +552,8 @@ After restart, agent, APIM, tool, and database behavior must remain available.
 
 ### 8.1 Default mode
 
-`A365_RECORD_CONTENT=false` is the normal development and production default.
+`A365_RECORD_CONTENT=false` is the normal default in `local`, `dev`, `tst`,
+and `prd`.
 
 Do not export:
 
@@ -597,22 +598,26 @@ Do not return success-shaped telemetry status when authentication failed. Do
 not fail a valid user operation only because a downstream telemetry surface is
 delayed.
 
-## 10. Development and production boundaries
+## 10. Environment boundaries
 
-| Concern | Local development | Production target |
-|---|---|---|
-| Agent Identity | Dedicated local/dev instance | Dedicated production instance |
-| Blueprint boundary | May share only when credential and permission risk is acceptable | Separate when trust or blast radius differs |
-| Blueprint credential | Short-lived client secret in ignored `.env` | Managed identity and workload identity federation |
-| Secret store | Git-ignored `.env` or developer store | Key Vault or approved platform store |
-| Content capture | Metadata-only; approved synthetic tests only | Metadata-only unless separately approved |
-| Sampling | 100 percent for focused validation | Defined policy with error/security retention |
-| Export diagnostics | Opt-in locally | Sanitized operational logging |
-| Runtime | Docker and Python 3.11 | Approved hosting with the same bootstrap order |
+Every runtime remains on premises and is promoted in the order
+`local` -> `dev` -> `tst` -> `prd`.
+
+| Concern | `local` | `dev` | `tst` | `prd` |
+|---|---|---|---|---|
+| Agent Identity | Dedicated local identity | Dedicated development identity | Dedicated test identity | Dedicated production identity |
+| Blueprint boundary | May share a nonproduction blueprint when approved | May share the approved nonproduction boundary | May share the approved nonproduction boundary | Separate when trust or blast radius differs |
+| Blueprint credential | Short-lived client secret in ignored `.env` | Environment-specific credential from an approved store | Environment-specific credential from an approved store | Certificate or approved workload federation target |
+| Secret store | Git-ignored `.env` or developer store | Approved on-premises development store | Approved on-premises test store | Approved on-premises production store |
+| Content capture | Metadata-only; approved synthetic tests only | Metadata-only; approved synthetic tests only | Metadata-only; approved policy tests only | Metadata-only unless separately approved |
+| Sampling | 100 percent for focused validation | Defined nonproduction policy | Release-validation policy | Defined production policy with error/security retention |
+| Export diagnostics | Opt-in locally | Sanitized operational logging | Sanitized release evidence | Sanitized operational logging |
+| Runtime | On-premises workstation or container | On-premises development host | On-premises test host | On-premises production host |
 
 The current code requires `A365_BLUEPRINT_CLIENT_SECRET` whenever Agent 365 is
-enabled. Production federation is a target architecture, not a capability that
-the current runtime already implements.
+enabled. Certificate or workload-federation authentication for the on-premises
+`prd` runtime is a target architecture, not a capability that the current
+runtime already implements.
 
 ## 11. Test strategy
 
@@ -620,21 +625,21 @@ the current runtime already implements.
 
 | Behavior | Test evidence |
 |---|---|
-| Required settings and safe defaults | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Two-step `fmi_path` exchange | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Final token claims | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Hashed conversation ID | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Agent and caller details | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Metadata-only and full-content modes | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Token refresh lifecycle | [test_a365_observability.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_a365_observability.py) |
-| Human token validation and distinct pseudonyms | [test_user_identity.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_user_identity.py) |
-| Device credential reuse and refresh | [test_chat_auth.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_chat_auth.py) |
-| Existing model error behavior | [test_rate_limit_handling.py](../lob/wealth/ai-agent-starter-portfolio-manager/test_rate_limit_handling.py) |
+| Required settings and safe defaults | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Two-step `fmi_path` exchange | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Final token claims | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Hashed conversation ID | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Agent and caller details | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Metadata-only and full-content modes | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Token refresh lifecycle | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
+| Human token validation and distinct pseudonyms | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) |
+| Device credential reuse and refresh | [test_chat_auth.py](../lob/wealth/portfolio-manager/test_chat_auth.py) |
+| Existing model error behavior | [test_rate_limit_handling.py](../lob/wealth/portfolio-manager/test_rate_limit_handling.py) |
 
 Run the focused suite:
 
 ```powershell
-Set-Location lob\wealth\ai-agent-starter-portfolio-manager
+Set-Location lob\wealth\portfolio-manager
 .\.venv\Scripts\python.exe -m pytest `
   test_a365_observability.py `
   test_user_identity.py `
@@ -723,8 +728,8 @@ indexing.
 
 Before production:
 
-1. Replace the local blueprint secret flow with managed identity and workload
-   identity federation.
+1. Replace the local blueprint secret flow with a certificate or approved
+   workload federation supported by the on-premises production platform.
 2. Use a dedicated production Agent Identity.
 3. Decide whether production requires a separate blueprint credential
    boundary.
@@ -780,8 +785,8 @@ Avoid:
 - Assuming HTTP 200 proves Purview, Defender, or Admin Center arrival.
 - Claiming every framework operation is automatically instrumented without
   inspecting the trace.
-- Claiming managed identity or federation is implemented when the runtime still
-  requires a client secret.
+- Claiming certificate or federation authentication is implemented when the
+  runtime still requires a client secret.
 
 ## 16. Official Microsoft guidance crosswalk
 
@@ -799,9 +804,9 @@ Documentation reviewed October 14, 2026.
 | Use a root `invoke_agent` span | API wraps `agent.run` in `InvokeAgentScope` | Aligned |
 | Verify invocation, tool, and inference spans | Focused tests and runtime validation process | Partially verified in tenant |
 | Verify Defender, Purview, and Admin Center | Purview ingestion verified; Admin Activity pending; Defender rows absent | Incomplete |
-| Separate environment settings | Local/dev identity is separate; production design documented | Partially implemented |
+| Separate environment settings | `local` is implemented; on-premises `dev`, `tst`, and `prd` designs are documented | Partially implemented |
 | Secure credentials | Secrets are ignored and omitted from examples | Aligned locally |
-| Prefer secretless production identity | Managed identity and federation are documented targets | Not yet implemented |
+| Prefer stronger production identity | Certificate or approved federation is the documented on-premises `prd` target | Not yet implemented |
 
 ## 17. Documentation ownership
 

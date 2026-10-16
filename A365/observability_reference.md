@@ -99,7 +99,7 @@ Exporter retries must be bounded independently.
 ## Content policy
 
 `A365_RECORD_CONTENT` defaults to `false`. Metadata-only operation is the
-baseline for normal development and production.
+baseline for on-premises `local`, `dev`, `tst`, and `prd`.
 
 Set `A365_RECORD_CONTENT=true` only for an approved nonproduction policy test.
 Agent 365 then receives the user prompt, agent response, and content emitted by

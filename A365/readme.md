@@ -21,7 +21,8 @@ Use this collection according to the work being performed:
 1. **Develop or review an integration:** Start with the
    [developer guide](./developers_guide.md).
 2. **Understand the design:** Read this page, then the
-   [implementation plan](./implementation_plan.md).
+   [implementation plan](./implementation_plan.md) and the
+   [hypothetical LOB rollout strategy](./lob_rollout_strategy.md).
 3. **Design the identity boundary:** Use the
    [blueprint guide](./blueprints.md) and
    [LOB blueprint guidance](./lob_blueprints.md).
@@ -50,6 +51,7 @@ Use this collection according to the work being performed:
 |---|---|
 | [Developer guide](./developers_guide.md) | Canonical logical design, code responsibilities, implementation method, validation gates, and Microsoft-guidance crosswalk |
 | [Implementation plan](./implementation_plan.md) | Phases, decisions, tests, rollout, and definition of done |
+| [Hypothetical LOB rollout strategy](./lob_rollout_strategy.md) | Nonbinding 24-month application waves, stage gates, identity topology, regional scaling, and enterprise operating model |
 | [Blueprints](./blueprints.md) | Beginner and architecture guide for Agent ID blueprints |
 | [LOB blueprint guidance](./lob_blueprints.md) | Enterprise taxonomy, boundary rules, and profiles for Contoso Bank lines of business |
 | [Tenant governance](./tenant_governance.md) | Roles, RACI, policies, risk, licensing, and approvals |
@@ -153,14 +155,15 @@ Agent 365 identity and must not be used to export telemetry.
                  +--------------------------------+
                  | Agent Identity Blueprint       |
                  |   -> BlueprintPrincipal        |
-                 |   -> Local/dev Agent Identity  |
+                 |   -> local/dev/tst/prd Agent   |
+                 |      Identities                |
                  |   -> Sponsor and policy        |
                  +---------------+----------------+
                                  |
                          S2S Agent ID token
                                  |
 +-------------+          +-------v----------------+
-| chat.py     |--------->| FastAPI / Agent        |
+| chat.py     |--------->| On-prem FastAPI / Agent|
 | user token  |          | Framework / Tools      |
 +-------------+          +---+----------------+---+
                             |                |
@@ -232,7 +235,7 @@ they are separately justified and approved.
 
 Telemetry content capture is a deliberate governance decision, not an
 incidental exporter setting. `A365_RECORD_CONTENT` defaults to `false`, making
-metadata-only export the baseline for normal development and production.
+metadata-only export the baseline for `local`, `dev`, `tst`, and `prd`.
 
 Metadata-only environments must not export:
 

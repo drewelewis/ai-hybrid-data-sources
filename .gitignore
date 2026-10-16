@@ -18,3 +18,4 @@ untracked_notes.md
 
 # Agent 365 generated configuration and credentials
 **/a365.generated.config.json
+**/a365-verification-results/

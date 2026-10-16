@@ -6,6 +6,9 @@ This guide explains how Contoso Bank's lines of business (LOBs) should
 influence Microsoft Entra Agent ID blueprint design. It supplements the
 enterprise [blueprint guide](./blueprints.md); it does not replace the
 identity, credential, permission, or lifecycle rules in that guide.
+For a time-phased application, environment, identity, and regional scaling
+model, see the
+[hypothetical LOB agent rollout strategy](./lob_rollout_strategy.md).
 
 The five core LOBs covered here are:
 
@@ -45,9 +48,10 @@ Contoso Bank Agent 365 estate
 |
 +-- Wealth
 |   +-- Portfolio Manager blueprint
-|       +-- Local development agent identity
-|       +-- Test agent identity
-|       +-- Production agent identity
+|       +-- Local agent identity
+|       +-- Dev agent identity
+|       +-- Tst agent identity
+|       +-- Prd agent identity
 |
 +-- U.S. Personal Banking
     +-- Agent-family blueprint(s), as approved
@@ -105,7 +109,7 @@ Document the following before registering a blueprint:
 | Inheritable permissions | Minimal permissions required by every instance |
 | Instance permissions | Permissions assigned only to specific identities |
 | Credential strategy | Federation, certificate, or approved temporary secret |
-| Environments | Development, test, and production separation |
+| Environments | On-premises `local`, `dev`, `tst`, and `prd` separation |
 | Policy and tags | Agent 365 policies and inventory metadata |
 | Review cadence | Permission, sponsor, and lifecycle review schedule |
 | Retirement owner | Team authorized to disable and delete the family |
@@ -217,7 +221,7 @@ authorize additional permissions or represent a production approval.
 |---|---|
 | LOB | Wealth |
 | Agent family | Trading Platform / Portfolio Manager |
-| Repository location | `lob/wealth/ai-agent-starter-portfolio-manager/` |
+| Repository location | `lob/wealth/portfolio-manager/` |
 | Business purpose | Query and analyze a portfolio event ledger through REST, chat, and MCP-compatible surfaces |
 | Blueprint | `trading-platform-agent` |
 | Current instance | Local development agent identity |
@@ -228,11 +232,11 @@ authorize additional permissions or represent a production approval.
 | Content capture | Governed by the current observability and privacy configuration |
 | Business sponsor | Must remain assigned and current in Entra Agent ID |
 | Technical owner | Portfolio-manager application owner |
-| Environment boundary | Local development is documented; production requires a separate review and identity |
+| Environment boundary | All stages are on premises; `local` is documented, while `dev`, `tst`, and `prd` require promotion reviews and separate identities |
 
-Before adding production, trade execution, fund movement, Work IQ, Microsoft
-Graph, or new customer-data access, repeat the blueprint boundary review and
-obtain the approvals required by the
+Before promotion to `dev`, `tst`, or `prd`, or before adding trade execution,
+fund movement, Work IQ, Microsoft Graph, or new customer-data access, repeat
+the blueprint boundary review and obtain the approvals required by the
 [tenant governance guide](./tenant_governance.md).
 
 ## Naming and inventory metadata
@@ -251,8 +255,10 @@ Examples:
 
 ```text
 wealth-portfolio-manager
-wealth-portfolio-manager-local-dev
-wealth-portfolio-manager-production
+wealth-portfolio-manager-local
+wealth-portfolio-manager-dev
+wealth-portfolio-manager-tst
+wealth-portfolio-manager-prd
 ```
 
 Recommended inventory metadata:

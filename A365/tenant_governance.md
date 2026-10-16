@@ -80,7 +80,8 @@ Recommended tags:
 - Prefer federation to secrets.
 - Assign Azure RBAC directly to the agent identity.
 - Disable stale or ownerless identities.
-- Separate development and production instances.
+- Use separate identities for on-premises `local`, `dev`, `tst`, and `prd`
+  instances.
 
 ## Risk management
 

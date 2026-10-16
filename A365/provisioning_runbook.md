@@ -47,15 +47,22 @@ Record the CLI version and tenant before provisioning.
 |---|---|
 | Blueprint | `trading-platform-agent` |
 | BlueprintPrincipal | Created for the blueprint |
-| Local/dev instance | `trading-platform-agent-local-dev` |
-| Production instance | `trading-platform-agent-prod` |
+| Current local instance | `trading-platform-agent-local-dev` (existing legacy display name) |
+| Future local standard | `trading-platform-agent-local` |
+| Development instance | `trading-platform-agent-dev` |
+| Test instance | `trading-platform-agent-tst` |
+| Production instance | `trading-platform-agent-prd` |
 | Sponsor | Approved accountable user or group |
+
+Every runtime is hosted on premises. Do not reuse the current local identity
+for `dev`; create a separate identity as the application is promoted through
+`local` -> `dev` -> `tst` -> `prd`.
 
 ## Preflight
 
 - [ ] Confirm the signed-in tenant ID.
 - [ ] Confirm the sponsor object ID.
-- [ ] Confirm whether dev and production share a blueprint.
+- [ ] Confirm whether `local`, `dev`, `tst`, and `prd` share a blueprint.
 - [ ] Confirm metadata-only telemetry.
 - [ ] Confirm no Microsoft 365 Work IQ permissions are requested.
 - [ ] Confirm no agent user account is requested.

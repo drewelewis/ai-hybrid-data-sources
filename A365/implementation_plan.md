@@ -73,18 +73,29 @@ Create:
 
 1. One Agent Identity Blueprint for the Trading Platform Agent type.
 2. The mandatory BlueprintPrincipal.
-3. One Agent Identity for the local/dev instance.
-4. At least one human sponsor for the blueprint and agent identity.
+3. One Agent Identity for each required environment: `local`, `dev`, `tst`,
+   and `prd`.
+4. At least one human sponsor for the blueprint and each agent identity.
+
+Only the `local` identity exists in the current implementation. The later
+identities are created only as the application is promoted.
 
 Recommended names:
 
 - Blueprint: `trading-platform-agent`
-- Dev instance: `trading-platform-agent-local-dev`
-- Future production instance: `trading-platform-agent-prod`
+- Local instance: `trading-platform-agent-local`
+- Development instance: `trading-platform-agent-dev`
+- Test instance: `trading-platform-agent-tst`
+- Production instance: `trading-platform-agent-prd`
 
-Use separate agent identities for development and production. Use separate
-blueprints only if those environments must not share a credential boundary or
-inherited permissions.
+Use a separate agent identity for every environment. Use separate blueprints
+only if environments must not share a credential boundary or inherited
+permissions.
+
+The already-deployed `trading-platform-agent-local-dev` identity is a
+grandfathered display name and is classified as the current `local` identity.
+Do not reuse it for the future `dev` stage or rename the tenant object without
+a separately approved migration.
 
 ### 3.3 Runtime authentication
 
@@ -104,10 +115,20 @@ For local development:
 - Cache the final token in memory, refresh it before expiry, and never expose
   a token endpoint or log token values.
 
-For an Azure-hosted production runtime:
+For on-premises `dev` and `tst` runtimes:
 
-- Use managed identity plus workload identity federation.
-- Do not use a client secret.
+- Use environment-specific credentials from approved nonproduction secret
+  stores.
+- Do not reuse the `local` identity or credential.
+
+For the on-premises `prd` runtime:
+
+- Use a certificate or approved workload-federation design supported by the
+  production platform.
+- Do not use the local-development client secret.
+
+All four agent runtimes remain on premises. APIM, Agent 365, and other cloud
+services remain governed dependencies rather than agent-hosting platforms.
 
 Do not reuse any of these values for telemetry:
 
@@ -152,7 +173,7 @@ Complete these checks before modifying runtime code:
 - [ ] A Global Administrator is available for any required consent.
 - [ ] An accountable sponsor user is selected.
 - [ ] The tenant ID is confirmed.
-- [ ] Development and production identity boundaries are approved.
+- [ ] `local`, `dev`, `tst`, and `prd` identity boundaries are approved.
 - [ ] Metadata-only telemetry is approved.
 - [ ] The Agent 365 CLI/Skills version is recorded.
 
@@ -192,7 +213,9 @@ Tasks:
 - [ ] Register the `trading-platform-agent` blueprint.
 - [ ] Verify that the BlueprintPrincipal exists.
 - [ ] Verify that `managerApplications` is populated.
-- [ ] Create `trading-platform-agent-local-dev` from the blueprint.
+- [ ] Create the local identity from the blueprint. The currently deployed
+      local identity retains the legacy display name
+      `trading-platform-agent-local-dev`.
 - [ ] Assign the approved sponsor.
 - [ ] Confirm the identity is visible in Microsoft Entra.
 - [ ] Confirm the agent appears in the Agent 365 inventory.
@@ -350,8 +373,9 @@ Validation checklist:
 
 Tasks:
 
-- [ ] Replace the local blueprint secret with managed identity and federation.
-- [ ] Create a separate production agent identity.
+- [ ] Replace the local blueprint secret with a certificate or approved
+      workload federation for on-premises `prd`.
+- [ ] Create separate `dev`, `tst`, and `prd` agent identities.
 - [ ] Store all secrets in an approved secret store.
 - [ ] Pin all A365 and OpenTelemetry dependencies.
 - [ ] Add dependency and image vulnerability scanning.

@@ -30,6 +30,7 @@ separately with the [verification process](../verification_process.md).
 | Agent Identity display name | `trading-platform-agent-local-dev` |
 | Agent Identity application ID | `7f2edbcc-8375-4d1d-a430-93c14e8db94e` |
 | Runtime agent name | `TradingPlatformAgent` |
+| Lifecycle classification | `local`; the existing display name is grandfathered and is not the future `dev` identity |
 
 Microsoft Entra commonly exposes both:
 
@@ -269,6 +270,13 @@ Correlate every risk item with the exact Agent Identity. A risk finding for a
 blueprint, agent user account, cloud app, or different child identity is not
 automatically a finding for this runtime.
 
+Do not try to create a risk finding by password spraying, replaying tokens,
+spoofing impossible travel, or using leaked credentials. The repeatable
+verification harness safely proves the interactive user sign-in and can later
+prove an approved report-only Conditional Access evaluation. Its adversarial
+prompt content belongs to Purview and Defender analysis, not Entra sign-in
+risk generation.
+
 ## 9. Conditional Access
 
 Agent identities do not perform human MFA. Use workload- or agent-appropriate
@@ -288,6 +296,25 @@ instead.
 
 Workload Conditional Access for this local-development identity remains a
 review item and is not yet verified as implemented.
+
+### 9.1 Automation boundary
+
+Generic Conditional Access policy CRUD is available through Microsoft Graph
+v1.0. Agent-specific targeting fields such as
+`includeAgentIdServicePrincipals`, `excludeAgentIdServicePrincipals`, and
+`agentIdServicePrincipalFilter` are currently Microsoft Graph beta and the
+portal experience is preview.
+
+The Microsoft Graph Bicep extension does not expose Conditional Access policy
+resources, and the current Terraform AzureAD resource does not expose these
+agent-specific targeting fields. Keep this repository's Azure Bicep focused on
+Azure infrastructure. If an agent-targeted policy is approved, store its
+reviewed JSON as configuration and apply it through a separately controlled
+Graph beta workflow with `Policy.ReadWrite.ConditionalAccess`. Start in
+report-only mode and make `state: disabled` the first rollback step.
+
+A Conditional Access policy is not required to produce an Entra sign-in log.
+Do not create one merely to make this verification harness visible.
 
 ## Identity investigation workflow
 
@@ -311,6 +338,8 @@ review item and is not yet verified as implemented.
 | Sponsor is assigned | Verified |
 | Agent 365 inventory registration exists | Verified |
 | App-only Agent Identity token exchange succeeds | Verified by runtime health and focused tests |
+| Device-code verification creates an interactive client sign-in | Verified during the October 14 controlled run |
+| Every chat batch creates a fresh Agent Identity workload sign-in | Not expected; the API reuses the Agent 365 token until its refresh window |
 | Production managed identity/federation exists | Not implemented |
 | Workload Conditional Access assignment is verified | Pending |
 | Agent user account exists | Intentionally not enabled |
@@ -336,3 +365,6 @@ review item and is not yet verified as implemented.
 - [Agent identities, service principals, and applications](https://learn.microsoft.com/en-us/entra/agent-id/agent-service-principals)
 - [Microsoft Entra Agent ID logs](https://learn.microsoft.com/en-us/entra/agent-id/sign-in-audit-logs-agents)
 - [Sign-in logs](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-sign-ins)
+- [Conditional Access for agents](https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-autonomous-agents)
+- [Conditional Access client applications resource](https://learn.microsoft.com/en-us/graph/api/resources/conditionalaccessclientapplications?view=graph-rest-beta)
+- [Microsoft Graph Bicep resource reference](https://learn.microsoft.com/en-us/graph/templates/bicep/reference/overview?view=graph-bicep-1.0)

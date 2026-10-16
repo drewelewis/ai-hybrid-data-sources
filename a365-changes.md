@@ -2590,3 +2590,660 @@ connection strings, or sensitive portfolio content.
 - **Follow-up:** Continue the explicitly documented production identity,
   Admin Center Activity, Purview policy-evaluation, and Defender-ingestion
   validation gates.
+
+## 2026-10-14 15:24 EDT - Generate cross-product verification telemetry
+
+- **Status:** Partially succeeded
+- **Scope:** Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Generate a time-bounded, recognizable Agent 365 activity batch
+  that can be correlated across Microsoft Purview, Microsoft Entra, and
+  Microsoft Defender.
+- **Change:** Use the existing authenticated local chat session and registered
+  Agent Identity `7f2edbcc-8375-4d1d-a430-93c14e8db94e` to submit only
+  synthetic, non-sensitive prompts. Keep the already-running full-content
+  telemetry mode unchanged, avoid portfolio queries and data-changing tools,
+  record the UTC test window, validate local export health, and perform
+  read-only portal checks after ingestion.
+- **Result:** Generated two full-content synthetic interactions under marker
+  `A365-VERIFY-20261014T192936Z`: one model-only response and one
+  `check_database_health` tool invocation. The user stopped the batch before
+  the synthetic policy prompt and requested a fresh console that the assistant
+  can drive after user sign-in.
+- **Validation:** Before the batch, `GET /health` reported the API, database,
+  and Agent 365 observability as ready with content recording enabled. The user
+  confirmed a nonempty model response and a successful database-reachable
+  result without retrieving portfolio data.
+- **Rollback:** Stop generating test interactions. Exported activity and audit
+  records cannot be individually rolled back and remain subject to Microsoft
+  365 retention. No configuration or tenant policy change is planned.
+- **Follow-up:** Use a new controlled console session for the replacement
+  verification batch, then correlate both markers if the earlier records
+  appear.
+
+## 2026-10-14 15:49 EDT - Drive dedicated verification console
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Runtime | Tenant
+- **Requested by:** User
+- **Purpose:** Launch a fresh interactive chat, let the user complete Microsoft
+  sign-in, and then let the assistant generate a controlled Agent 365 usage
+  batch in that exact console for Entra, Purview, and Defender verification.
+- **Change:** Create a temporary controller under the session workspace, start
+  the repository's `chat.py` in a dedicated process, relay assistant-selected
+  synthetic prompts through a private local named pipe after user sign-in,
+  monitor responses, stop the process, and remove the controller. Do not
+  record the device code or token. Keep full-content recording unchanged and
+  avoid portfolio records and data-changing tools.
+- **Result:** Launched a fresh `chat.py` process under a temporary named-pipe
+  controller, let the user complete device-code sign-in, and then drove six
+  synthetic prompts under marker `A365-E2E-20261014T195300Z`. The batch
+  covered model-only output, database health, a nonexistent synthetic account,
+  a standard nonproduction payment-card pattern, a refusal-and-escalation
+  scenario, and conversation continuity. No real portfolio record was
+  requested or returned, and no data-changing tool was invoked. The process
+  exited normally, and the temporary controller was removed.
+- **Validation:** The test window was `2026-10-14T19:52:00Z` through
+  `2026-10-14T19:57:19.475Z`. Final API health was `healthy`; the agent,
+  database, and Agent 365 observability were ready; the Agent 365 token was
+  ready; and `last_error` was null. Entra recorded a successful interactive
+  sign-in at `19:52:23Z` for dev client
+  `6e1aeae6-454f-46b1-b2fc-e5e4f545a9d7` to API
+  `b5f47979-0f11-45be-8181-0fc768c4fa0f`. The most recent workload pair at
+  `19:08:51Z` showed the blueprint exchanging through the public token
+  exchange endpoint and Agent Identity
+  `7f2edbcc-8375-4d1d-a430-93c14e8db94e` obtaining a token for
+  `Agent365Observability`; the verification run reused that cached token.
+  Purview Activity Explorer showed 22 new `Local-cli` AI interaction rows
+  across `19:53Z` through `19:56Z`. Defender Advanced Hunting returned 12
+  rows for the exact Agent Identity in the test window: eight `InvokeAgent`
+  and four `InferenceCall` events at `19:53:40Z`, `19:55:15Z`,
+  `19:55:47Z`, and `19:56:19Z`. A stale Defender portal tab returned embedded
+  authentication errors, and a direct API attempt lacked
+  `AdvancedHunting.Read`; no consent was changed. A fresh authenticated portal
+  tab ran the query successfully.
+- **Rollback:** Stop the controller and child chat process and remove the
+  temporary controller. Already-exported activity cannot be individually
+  deleted and remains subject to Microsoft 365 retention.
+- **Follow-up:** Recheck Purview policy findings and sensitive-information
+  classification after their longer analytics window. Current Defender
+  results did not yet expose the two tool calls from this batch; continue to
+  treat tool-event coverage as preview-dependent.
+
+## 2026-10-15 14:59 EDT - Build repeatable cross-product telemetry harness
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Replace the temporary interactive-console controller with a
+  reusable, longer-running scripted conversation that an operator can
+  authenticate through device code and correlate across Microsoft Entra,
+  Microsoft Purview, and Microsoft Defender.
+- **Change:** Add a checked-in Python harness beside `chat.py` that reuses the
+  existing device-code and API client path, sends configurable rounds of
+  synthetic multi-turn prompts, avoids real portfolio identifiers and
+  data-changing tools, records a unique marker and UTC window, and writes a
+  sanitized local evidence bundle with product-specific filters and a
+  time-bounded Defender query. Add focused tests and update the existing
+  verification documentation. Research supported policy-automation surfaces
+  and document the result; do not create, consent, enable, or modify any
+  tenant policy, permission, identity, alert, or cloud resource in this
+  action.
+- **Result:** Added
+  `lob/wealth/ai-agent-starter-portfolio-manager/a365_verify.py`. It reuses
+  `chat.py` device-code authentication, token refresh, API error handling, and
+  `/chat` transport; defaults to three rounds and 15 synthetic turns; supports
+  1-20 rounds and a bounded delay; keeps each round conversational; clears
+  each synthetic session; stops additional traffic on authentication,
+  authorization, or rate-limit failures; and exits nonzero for failed
+  interactions or unhealthy final runtime state. The base workload covers
+  model inference, database health, nonexistent synthetic account and ticker
+  tool calls, and conversation continuity without using real business
+  identifiers or data-changing tools. An explicit
+  `--include-policy-scenarios` flag adds a standard synthetic payment-card
+  pattern and fictional misconduct/refusal turn only when `/health` confirms
+  content recording is enabled. The harness writes a Git-ignored JSON report
+  containing the marker, exact UTC bounds, non-secret identity IDs, sanitized
+  scenario status/timing, runtime health, and product filters, plus a
+  metadata-only bounded Defender KQL file; it never persists prompt or
+  response text. Added focused tests, documented operation and content-mode
+  rollback, corrected stale October 14 Entra/Purview/Defender evidence, and
+  updated the Defender connector prerequisite.
+
+  Current Microsoft documentation confirms that stronger policies are not
+  required merely to create Entra sign-ins or Purview activity. Defender
+  `CloudAppEvents` requires the one-time Microsoft 365 connector data path,
+  which is functioning in this tenant based on the verified October 14 rows.
+  None of these Microsoft 365 controls belong in the Azure Bicep deployment:
+  Purview DLP supports Security & Compliance PowerShell configuration as code;
+  Communication Compliance, Insider Risk, and DSPM recommendation workflows
+  remain portal-managed; Defender persisted custom detections use Microsoft
+  Graph beta; and Agent Identity-specific Conditional Access targeting uses
+  Microsoft Graph beta rather than Bicep or the current Terraform AzureAD
+  schema. No policy-as-code deployment was added because the tenant already
+  has approved interaction-capture, unethical-behavior, and risky-AI policy
+  work to validate first.
+- **Validation:** The focused suite passed all 44 tests across
+  `test_a365_verify.py`, `test_chat_auth.py`, `test_a365_observability.py`,
+  `test_user_identity.py`, and `test_rate_limit_handling.py`. The harness
+  `--help` command loaded successfully with the intended bounds and flags, and
+  `git diff --check` passed. Pylance MCP diagnostics were unavailable because
+  its local transport could not initialize; pytest imported and exercised the
+  new modules successfully. No live harness run, device-code sign-in, tenant
+  policy change, permission grant, or new telemetry was performed during this
+  repository action.
+- **Rollback:** Remove the harness, tests, documentation references, and
+  generated local evidence. No exported tenant activity is expected during
+  unit validation. If the harness is later run against the live API,
+  resulting audit activity remains subject to Microsoft 365 retention.
+- **Follow-up:** Run the checked-in harness against the healthy local API,
+  complete device-code sign-in, and correlate its generated JSON/KQL bundle
+  after the documented ingestion window. Test the already-approved Purview
+  controls before proposing a stronger policy. Any future DLP automation,
+  Defender custom detection, or agent-targeted Conditional Access workflow
+  requires separate approval for permissions, licensing, alert/enforcement
+  effects, preview risk, and rollback.
+
+## 2026-10-15 16:21 EDT - Add safe adversarial verification profile
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Generate controlled adversarial Agent 365 interactions that can
+  exercise the tenant's existing Purview risk policies and produce
+  distinguishable Defender activity while retaining safe, repeatable
+  execution and useful Entra sign-in evidence.
+- **Change:** Replace the repetitive test-language conversation in
+  `a365_verify.py` with realistic portfolio-support turns and inject one or
+  two safe randomized exploit attempts into every run. Cover prompt
+  injection/evasion, credential disclosure, attempted exfiltration to a
+  reserved non-routable domain, and unauthorized access to a nonexistent
+  generated account. In the existing opt-in policy mode, also allow synthetic
+  payment-card and unethical approval-bypass scenarios and guarantee that at
+  least one selected attempt targets a content-policy category. Require
+  content recording for that policy mode, prohibit real business identifiers
+  and data-changing tool calls, preserve the current policy-scenario CLI for
+  compatibility, record the random seed, and add sanitized expected-signal
+  metadata to the local evidence bundle. Update tests and the existing Agent
+  365 guides. Do not create or modify tenant policies, permissions,
+  identities, detections, alerts, licenses, or cloud resources. Do not
+  attempt password spraying, token replay, impossible travel, or other
+  activity intended to manufacture an Entra risk detection.
+- **Result:** Normal rounds now ask naturally phrased questions about public
+  ticker observations, service health, agent capabilities, and generated QA
+  account references, with context-dependent follow-ups. They no longer
+  repeat the marker, round number, tool name, or observability-test
+  instructions in each prompt. Every run randomly selects one or two unique
+  exploit attempts and appends them only after a complete normal conversation
+  in randomly selected rounds, preserving follow-up context. The base pool
+  uses inaccessible credential requests, the reserved
+  `security-test.invalid` domain, and generated nonexistent QA accounts. The
+  policy pool adds the standard test payment-card value and a fictional
+  approval/audit-bypass request, with at least one policy candidate guaranteed
+  when `--include-policy-scenarios` is used. Added
+  `--exploit-attempts 1|2` and `--seed`; the generated seed reproduces the
+  conversation templates, public tickers, exploit selection, and round
+  placement. Evidence schema version 2 records only exploit scenario names
+  and candidate signal categories, never raw prompt or response text.
+- **Validation:** All 46 focused tests passed across
+  `test_a365_verify.py`, `test_chat_auth.py`, `test_a365_observability.py`,
+  `test_user_identity.py`, and `test_rate_limit_handling.py`. CLI help loaded
+  with the new exploit-count and seed options. A fixed-seed five-round plan
+  preview confirmed coherent natural conversations and two exploit attempts
+  appended after complete normal sequences. `git diff --check` passed for all
+  harness and documentation files. The global check remains blocked by two
+  unrelated trailing blank lines in the user-modified `requirements.txt`;
+  that file was not changed by this action. No live chat, device-code sign-in,
+  telemetry generation, or tenant state change was performed.
+- **Rollback:** Revert the adversarial scenario, test, and documentation
+  changes. No tenant activity will be generated during unit validation.
+  Activity from a later live run cannot be individually deleted and remains
+  subject to Microsoft 365 retention.
+- **Follow-up:** Run the policy mode against the already-approved Purview
+  controls, correlate exact rows and policy outcomes using the generated seed
+  and UTC window, then seek separate approval only for any missing Defender
+  detection or Entra report-only Conditional Access control. Treat Entra
+  sign-in and policy-evaluation evidence as the safe identity assertion; do
+  not manufacture a risky-sign-in alert.
+
+## 2026-10-15 16:42 EDT - Simplify adversarial verification command
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make the extended Agent 365 verification a single opinionated
+  command instead of requiring operators to select multiple tuning flags.
+- **Change:** Remove the public runtime-tuning options from `a365_verify.py`.
+  Make a no-argument run always execute five realistic conversation rounds,
+  wait five seconds between interactions, include the approved content-policy
+  scenario pool, randomly select one or two safe exploit attempts, write the
+  standard evidence bundle, and open Entra, Purview, and Defender. Continue to
+  obtain the API URL and Agent Identity from the existing environment and
+  require content recording. Retain the generated seed in evidence for audit,
+  but do not expose normal operator tuning. Update tests and existing
+  documentation. Do not run the live test or modify tenant state.
+- **Result:** `a365_verify.py` now exposes one operator behavior. A no-argument
+  run always uses five realistic conversation rounds, a five-second delay,
+  the full approved content-policy exploit pool, one or two randomly selected
+  safe exploit attempts with at least one content-policy candidate, the
+  standard evidence directory, and automatic opening of the Entra, Purview,
+  and Defender portals. The API URL continues to come from `CHAT_API_URL`,
+  and the Agent Identity continues to come from `A365_AGENT_ID`; these are
+  existing runtime configuration rather than per-run tuning. Removed the
+  public round, delay, policy-mode, exploit-count, seed, API URL, Agent ID,
+  output-directory, and portal flags. The generated seed remains in the
+  evidence bundle for audit. Updated the application README, verification
+  process, and privacy guidance so operators use only
+  `.\.venv\Scripts\python.exe a365_verify.py`.
+- **Validation:** All 48 focused tests passed across
+  `test_a365_verify.py`, `test_chat_auth.py`, `test_a365_observability.py`,
+  `test_user_identity.py`, and `test_rate_limit_handling.py`. Tests verify the
+  fixed five-round/five-second/content-policy/open-portals profile and reject
+  removed tuning flags. `a365_verify.py --help` now exposes only standard
+  help and states that no options are required. A repository search found no
+  remaining references to the removed flags in the executable or current
+  operator documentation. `git diff --check` passed for all files in this
+  action. The global worktree still contains two unrelated trailing blank
+  lines in the user-modified `requirements.txt`; that file was not changed by
+  this action. No live verification traffic or tenant state change occurred.
+- **Rollback:** Restore the removed command-line options and corresponding
+  documentation. No tenant activity is expected during repository validation.
+- **Follow-up:** Run the simplified no-argument command after confirming the
+  nonproduction API reports content recording enabled, then correlate the
+  generated UTC window across Entra, Purview, and Defender.
+
+## 2026-10-16 14:29 EDT - Scaffold LOB agent use cases
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Establish a scalable Contoso Bank folder taxonomy for multiple
+  agent use cases under each line of business.
+- **Change:** Preserve the existing Wealth Portfolio Manager and create enough
+  placeholder use-case folders to provide two candidates per core LOB, using
+  the existing `ai-agent-starter-*` naming convention. Add Corporate Credit
+  Memo Analyst and Deal Diligence Coordinator under Banking; Markets Risk
+  Analyst and Trade Surveillance Analyst under Markets; Treasury Liquidity
+  Manager and Trade Finance Operations under Services; Card Dispute Assistant
+  and Mortgage Servicing Assistant under U.S. Personal Banking; and Client
+  Advisor under Wealth. Use `.gitkeep` placeholders only and update the
+  existing LOB catalog with friendly names, folder names, and concise
+  candidate scopes. Do not scaffold runtime code, provision Agent 365
+  identities, or change tenant/cloud state.
+- **Result:** Created nine candidate use-case folders with versioned
+  `.gitkeep` placeholders. Banking now contains Corporate Credit Memo Analyst
+  and Deal Diligence Coordinator; Markets contains Markets Risk Analyst and
+  Trade Surveillance Analyst; Services contains Treasury Liquidity Manager
+  and Trade Finance Operations; U.S. Personal Banking contains Card Dispute
+  Assistant and Mortgage Servicing Assistant; and Wealth contains the new
+  Client Advisor alongside the existing implemented Portfolio Manager.
+  Removed the obsolete root `.gitkeep` files from the four previously empty
+  LOBs. Updated `lob/current_lobs.md` with the ten friendly use-case names,
+  exact folder paths, concise scopes, and an explicit distinction between
+  candidate placeholders and the existing implementation. No runtime code,
+  Agent 365 object, identity, permission, policy, or cloud resource was
+  created.
+- **Validation:** Enumerated all `ai-agent-starter-*` directories under each
+  LOB and confirmed exactly two for Banking, Markets, Services, U.S. Personal
+  Banking, and Wealth. Confirmed all nine new placeholder files exist.
+  `git diff --check` passed for the LOB taxonomy and ledger changes after
+  excluding the unrelated user-modified Wealth Portfolio Manager
+  `requirements.txt`, which still has a pre-existing trailing-blank-line
+  warning. No test suite was required for folder and documentation-only
+  scaffolding.
+- **Rollback:** Remove only the new placeholder folders and revert the LOB
+  catalog update.
+- **Follow-up:** Select one candidate use case for detailed requirements,
+  architecture, identity, data-access, and governance design.
+
+## 2026-10-16 14:32 EDT - Shorten LOB use-case folder names
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Make the Contoso Bank LOB taxonomy concise by removing the
+  repeated `ai-agent-starter-` prefix from use-case folder names.
+- **Change:** Rename all ten LOB use-case directories to their concise names,
+  including moving the implemented Wealth application from
+  `lob/wealth/ai-agent-starter-portfolio-manager` to
+  `lob/wealth/portfolio-manager`. Update the LOB catalog, active A365
+  documentation links and commands, and the root API/chat launch scripts.
+  Preserve historical ledger text. Do not rename runtime service names,
+  containers, images, Agent 365 identities, registry metadata, or deployed
+  resources. Move the existing local application contents unchanged and
+  validate whether its local virtual environment remains executable at the
+  new path. Temporarily stop the two processes hosting the current local API,
+  then restart the same API through the updated root launcher and confirm
+  health so the pre-existing runtime is preserved.
+- **Result:** Renamed all ten use-case directories and updated the active LOB
+  catalog, A365 documentation paths, and root API/chat launchers. The
+  implemented application now resides at `lob/wealth/portfolio-manager`;
+  its contents, including the local virtual environment and the unrelated
+  user-modified `requirements.txt`, moved unchanged. The local API processes
+  were already absent before the move. A stale, childless `cmd.exe` process
+  (PID 37868) still had the old directory as its current working directory;
+  it was terminated so the move could complete. The first launcher validation
+  exposed Docker Compose deriving a new project name from the concise folder,
+  which conflicted with the existing PostgreSQL container. Added the explicit
+  Compose project name `ai-agent-starter-portfolio-manager` to preserve and
+  reuse the existing container and data volume. Removed only the empty
+  `portfolio-manager_default` network and unattached
+  `portfolio-manager_postgres_data` volume created by that failed validation
+  attempt. Service, container, image, Agent 365 identity, registry, deployed
+  resource, and observability names remain unchanged. No tenant, Azure, or
+  Agent 365 object was changed.
+- **Validation:** Confirmed the old Wealth path is absent, the new path exists,
+  and every LOB has exactly two concise use-case directories. Searches found
+  no stale prefixed candidate paths; old Wealth paths remain only in this
+  historical ledger. Both root launchers resolve the new path. The relocated
+  `.venv\Scripts\python.exe` executed successfully and reported the new
+  virtual-environment prefix, and `a365_verify.py --help` succeeded. The
+  focused regression suite passed with 48 tests. A broader directory-wide
+  pytest collection was attempted but remains blocked by the pre-existing
+  `test_api.py` and `test_mcp.py` collectors because the installed MCP client
+  package does not export `streamable_http_client`; no dependency was changed
+  for this unrelated issue. `docker compose config` resolved the preserved
+  project name. `startapi.bat` then started successfully, and `/health`
+  reported the API, agent, and database healthy plus Agent 365 observability
+  enabled and ready with token and content recording ready. The temporary
+  local API validation process was stopped afterward. The original PostgreSQL
+  container remains running under project
+  `ai-agent-starter-portfolio-manager` with volume
+  `ai-agent-starter-portfolio-manager_postgres_data`; no failed-project
+  network or volume remains.
+- **Rollback:** Rename the ten folders back to their
+  `ai-agent-starter-*` names, restore the active path references, and remove
+  the explicit top-level Compose project name.
+- **Follow-up:** If directory-wide integration-test collection is required,
+  resolve the pre-existing MCP client/test compatibility issue separately.
+
+## 2026-10-16 15:05 EDT - Create APIM-backed Markets agents
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Turn the Markets Risk Analyst and Trade Surveillance Analyst
+  use cases into simple agents that obtain LLM access only through the
+  governed APIM endpoint.
+- **Change:** Replace each Markets placeholder with an independently runnable,
+  model-only Microsoft Agent Framework console agent. Reuse the validated APIM
+  contract from the Wealth application: Entra bearer authentication, APIM
+  subscription-key header, gateway-origin endpoint, deployment name, and API
+  version supplied through environment variables. Give each agent a
+  use-case-specific prompt, a safe sample environment file, minimal
+  dependencies, setup instructions, and focused tests. Do not add databases,
+  business tools, HTTP services, direct-Foundry fallback, secrets, Agent 365
+  identities, tenant objects, or Azure resources. Do not send live model
+  requests during validation.
+- **Result:** Replaced both Markets placeholders with independent, runnable
+  Python implementations. Each folder now contains a use-case-specific
+  Microsoft Agent Framework factory, interactive console, APIM-only
+  environment contract, minimal dependency manifest, local artifact ignores,
+  setup and safety documentation, and focused tests. The Markets Risk Analyst
+  prompt limits the model to approved user-provided risk context and human
+  review. The Trade Surveillance Analyst prompt treats indicators as
+  hypotheses, prohibits accusations and evasion advice, and keeps case
+  disposition with authorized humans. Both clients require an HTTPS APIM
+  gateway origin, Entra token scope, subscription key, deployment name, and
+  API version; neither exposes a direct model endpoint or business tool. The
+  LOB catalog now distinguishes these runnable local implementations from
+  remaining placeholders. The attached requirements snapshot was used only
+  as a read-only reference and was not modified. No secrets, local virtual
+  environments, tenant objects, Agent 365 identities, Azure resources, or
+  live inference calls were created.
+- **Validation:** Inspected the installed Agent Framework signatures before
+  implementation. Pylance reported no syntax errors in either agent module or
+  console. Its workspace-selected interpreter reported only
+  `reportMissingImports` for the newly declared Agent Framework and Azure
+  packages because per-agent virtual environments have not yet been created.
+  Using the repository's installed Agent Framework environment, all 30
+  focused tests passed. Both factories then constructed real `ChatAgent` and
+  `AzureOpenAIChatClient` objects with a synthetic token provider without
+  making a network request, and `pip check` reported no broken requirements.
+  Static checks confirmed the complete file sets, removed placeholders,
+  APIM-only routing, placeholder-only subscription keys, ignored local
+  secrets and Python artifacts, clean source whitespace, and a clean tracked
+  documentation diff. Generated per-agent Python caches were removed.
+- **Rollback:** Remove the new files from the two Markets use-case folders,
+  restore their placeholder files, and revert the LOB catalog wording.
+- **Follow-up:** Create each documented local virtual environment, populate
+  its git-ignored `.env` with the approved APIM values, and perform an
+  authorized live smoke test. Onboard separate Agent 365 identities and
+  observability only after the two runtime designs are approved.
+
+## 2026-10-16 15:12 EDT - Document on-prem agent application lifecycle
+
+- **Status:** Succeeded
+- **Scope:** Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Make the LOB inventory application-oriented and record the IT
+  mandate that every agent runtime remains on premises through a consistent
+  environment lifecycle.
+- **Change:** Update `lob/current_lobs.md` so each use case is represented as
+  an agent application with its folder, implementation status, on-prem hosting
+  requirement, and required `local` to `dev` to `tst` to `prd` promotion path.
+  Align active Agent 365 environment, identity, credential, secret-source, and
+  production guidance that still assumes an Azure-hosted runtime or a
+  two-stage development/production model. Preserve cloud APIM and Agent 365 as
+  governed services reached by the on-prem runtimes. Do not create, promote,
+  deploy, register, or configure any environment, identity, tenant object,
+  secret, or Azure resource.
+- **Result:** Converted `lob/current_lobs.md` from a candidate-use-case list
+  into the authoritative ten-application inventory. Every row now records the
+  application folder, actual implementation state, on-premises-only hosting,
+  required `local` to `dev` to `tst` to `prd` promotion path, and business
+  scope. Added stage definitions and clarified that APIM, Microsoft Foundry
+  models, Agent 365, and other cloud services are governed dependencies rather
+  than agent-hosting platforms. Three applications are accurately marked as
+  runnable in `local`; seven remain placeholders with no runtime deployed.
+  Aligned active configuration, security, developer, implementation,
+  provisioning, blueprint, Entra, observability, and tenant-governance
+  guidance with the four on-premises stages and separate environment
+  identities and credentials. The already-deployed
+  `trading-platform-agent-local-dev` display name remains unchanged and is
+  explicitly classified as the grandfathered `local` identity; it must not be
+  reused for `dev` or renamed without a separately approved tenant migration.
+  No runtime was deployed or promoted, and no environment, identity, tenant
+  object, secret, or Azure resource was created or changed.
+- **Validation:** Confirmed exactly ten application rows, all ten
+  on-premises-only hosting declarations, all ten four-stage lifecycles, three
+  runnable-local states, seven placeholder states, and resolvable repository
+  folder links. Confirmed one unique on-premises definition for each of
+  `local`, `dev`, `tst`, and `prd`, with consistent Markdown table structure.
+  Searches found no active Azure-hosted production assumption, retired
+  `*-prod` target name, combined local/dev target, or two-stage
+  development/production guidance. Remaining
+  `trading-platform-agent-local-dev` references are limited to operator
+  records of the real deployed identifier and explicit grandfathering notes.
+  Scoped `git diff --check` passed for all affected documentation.
+- **Rollback:** Restore the previous candidate-use-case catalog and prior
+  environment wording in the affected Agent 365 guides.
+- **Follow-up:** Define environment-specific deployment automation,
+  configuration promotion, and separate `dev`, `tst`, and `prd` identity
+  registrations only after the lifecycle standard is approved.
+
+## 2026-10-16 15:24 EDT - Add Markets local environment files
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Give each Markets application an explicit local environment
+  file and make its lifecycle stage available to the runtime.
+- **Change:** Add `ENVIRONMENT_NAME` to both Markets agents as a required,
+  validated value limited to `local`, `dev`, `tst`, or `prd`; expose the
+  normalized value as agent metadata and document it in each sample and
+  README. Create a git-ignored `.env` in each Markets application with
+  `ENVIRONMENT_NAME=local`, the known non-secret APIM endpoint and model
+  defaults, and blank environment-specific token-scope, subscription-key, and
+  optional device-code fields. Do not copy or invent credentials, send a live
+  model request, promote an environment, or modify tenant or Azure state.
+- **Result:** Created a git-ignored, untracked `.env` in each Markets
+  application. Both files set `ENVIRONMENT_NAME=local`, use the known
+  non-secret APIM gateway origin, model deployment, API version, and default
+  authentication mode, and leave `APIM_TOKEN_SCOPE`,
+  `APIM_SUBSCRIPTION_KEY`, `AZURE_TENANT_ID`, and `AZURE_CLIENT_ID` blank.
+  Added `ENVIRONMENT_NAME` to both checked-in samples and READMEs. Both agent
+  configurations now require and normalize the value, reject anything outside
+  `local`, `dev`, `tst`, and `prd`, expose it as
+  `config.environment_name`, pass it into Agent Framework runtime metadata,
+  and display it in the console banner. No credential was copied or invented,
+  and no tenant, Azure, Agent 365, or deployed environment state changed.
+- **Validation:** Pylance found no syntax errors in the two agent modules or
+  consoles, and all 38 focused tests passed. Loaded both real `.env` files
+  through `python-dotenv` and confirmed the `local` value, expected non-secret
+  endpoint, and blank sensitive APIM fields. Each runtime failed closed on the
+  missing token scope before authentication. With synthetic test-only scope,
+  key, and token values, both real factories constructed `ChatAgent` objects
+  and stored `environment_name=local` in
+  `agent.chat_options.metadata`; no model request was sent. Confirmed both
+  `.env` files exist, are ignored, and are not tracked. Source whitespace and
+  the scoped diff check passed, and generated Python caches were removed.
+- **Rollback:** Remove the two ignored `.env` files and revert the
+  environment-name configuration, metadata, documentation, and tests.
+- **Follow-up:** Populate `APIM_TOKEN_SCOPE` and `APIM_SUBSCRIPTION_KEY`
+  through the authorized secret process before a live local smoke test.
+
+## 2026-10-16 15:30 EDT - Reuse local APIM subscription key for Markets
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Repository | Runtime
+- **Requested by:** User
+- **Purpose:** Configure both local Markets agents to use the same approved
+  APIM product subscription key as the local Wealth Portfolio Manager.
+- **Change:** Copy the populated `APIM_SUBSCRIPTION_KEY` line entirely in
+  memory from the git-ignored, untracked Wealth Portfolio Manager `.env` into
+  both git-ignored, untracked Markets `.env` files. Do not display, log, hash,
+  persist outside those ignored files, or add the key to a sample, source
+  file, test fixture, ledger entry, or Git index. The credential owner and
+  expiry are not inspected by this operation. Do not send a live request or
+  modify APIM, tenant, Agent 365, or Azure state.
+- **Result:** Copied the existing populated APIM product subscription key from
+  the ignored Wealth Portfolio Manager `.env` into both ignored Markets
+  `.env` files. The copy occurred entirely in process memory with
+  rollback-on-write-failure. The credential value and hash were not displayed,
+  logged, added to command arguments, stored outside the three ignored files,
+  or written to any tracked source, sample, test, or documentation file.
+  Credential ownership and expiry remain unknown because they were not
+  inspected. No APIM, tenant, Agent 365, Azure, or deployed runtime object was
+  changed, and no live request was sent.
+- **Validation:** Confirmed exactly one populated key line in the Wealth
+  source and exact in-memory equality with one key line in each Markets
+  target. Confirmed all three `.env` files are ignored and untracked.
+  Confirmed both checked-in Markets `env.sample` files retain only the
+  documented placeholder and do not contain the copied value. Both Markets
+  `APIM_TOKEN_SCOPE` values remain blank, so the agents still fail closed
+  before authentication until that approved setting is supplied.
+- **Rollback:** Replace `APIM_SUBSCRIPTION_KEY` with a blank value in both
+  Markets `.env` files; do not change the Wealth source.
+- **Follow-up:** Configure the approved APIM token scope before a live local
+  smoke test.
+
+## 2026-10-16 15:38 EDT - Document hypothetical LOB agent rollout
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Provide a practical, efficient, and risk-based way for a large
+  multinational bank to sequence the ten LOB agent applications, their
+  blueprints, environment identities, and potential regional instances over
+  time.
+- **Change:** Create a dedicated hypothetical rollout strategy with a
+  relative 24-month horizon, `local` to `dev` to `tst` to `prd` gates,
+  application waves, identity and blueprint planning rules, multinational
+  instance criteria, operating ownership, APIM and observability controls,
+  efficiency practices, evidence requirements, metrics, and stop/rollback
+  conditions. Base the strategy on current official Microsoft guidance for
+  Entra Agent ID, local-agent governance, Cloud Adoption Framework AI
+  planning and management, and APIM AI gateway controls. Link the strategy
+  from the LOB inventory, A365 documentation index, and LOB blueprint guide.
+  Clearly distinguish the hypothetical plan from deployed state. Do not read
+  or modify the tagged secret file, deploy an application, create an identity
+  or blueprint, promote an environment, or change tenant or Azure state.
+- **Result:** Created `A365/lob_rollout_strategy.md` as a nonbinding,
+  relative 24-month strategy. It covers the ten canonical application
+  families, two synchronized delivery tracks, risk-based waves, one identity
+  per governed application-stage-instance, blueprint split criteria, a
+  40-identity single-instance planning baseline, `local` to `dev` to `tst` to
+  `prd` gates, release rings, regional and legal-entity expansion, APIM
+  credential and cost boundaries, Agent 365 evidence, an enterprise operating
+  model, efficiency mechanisms, metrics, stop conditions, and lifecycle
+  rollback. The current shared local APIM subscription key is explicitly
+  classified as a bootstrap exception that must not be promoted. Added
+  navigation from `lob/current_lobs.md`, `A365/readme.md`, and
+  `A365/lob_blueprints.md`. No application, environment, identity, blueprint,
+  tenant policy, or Azure resource was deployed or changed.
+- **Validation:** A focused PowerShell validation confirmed all ten canonical
+  application names, all four environment stages, the identity formula,
+  nondeployment disclaimers, absence of stale application names, four local
+  links in the new document, and all three navigation links. `git diff
+  --check` passed for the new strategy, the three linked documents, and this
+  ledger.
+- **Rollback:** Remove the rollout-strategy document and its three navigation
+  links.
+- **Follow-up:** Use the strategy as an input to formal business, risk,
+  security, architecture, and regulatory planning before approving a wave.
+
+## 2026-10-16 16:11 EDT - Evaluate Agent 365 provisioning model
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Determine whether a large bank should manage Agent Identity
+  Blueprints and Agent Identities directly through Agent 365 CLI and Agent 365
+  Skills or through a code-controlled provisioning model.
+- **Change:** Performed read-only research against the current Microsoft
+  documentation for Agent 365 Skills, Agent 365 CLI, Agent ID creation
+  channels, Microsoft Graph v1.0 blueprint and identity APIs, Microsoft Graph
+  Bicep, and Agent 365 bulk onboarding. Compared those capabilities with the
+  golden-path automation and identity topology in
+  `A365/lob_rollout_strategy.md`. No CLI, skill, provisioning script, tenant
+  mutation, consent, or deployment command was run.
+- **Result:** Recommended a hybrid GitOps model. Store non-secret desired
+  state, policy, approvals, and evidence in version control; use supported
+  Agent 365 CLI commands for guided or exceptional single-agent operations
+  and diagnostics; use Agent 365 Skills for developer-side code integration
+  and validation; and use a centrally controlled Microsoft Graph or official
+  bulk-onboarding execution layer for reviewed `tst` and `prd` provisioning.
+  Treat the current bulk CSV workflow as a versioned onboarding request and
+  report mechanism rather than a complete declarative reconciler because
+  Microsoft warns that partial retries can create duplicates. Do not give
+  individual application pipelines or coding assistants standing production
+  tenant permissions.
+- **Validation:** Confirmed that Microsoft documents Skills as a guided,
+  additive, state-aware workflow that invokes the CLI; documents the CLI for
+  CI/CD, troubleshooting, and granular setup; exposes blueprint and Agent
+  Identity creation through Microsoft Graph v1.0; lists CLI, PowerShell, and
+  infrastructure-as-code as supported creation channels; and provides
+  `-WhatIf`, dependency planning, app-only authentication, and consolidated
+  reporting in the official bulk-onboarding scripts. Confirmed the bulk guide
+  explicitly requires tenant-state inspection and a reviewed retry batch
+  after partial failure instead of blindly rerunning successful rows.
+- **Rollback:** Not applicable; this was read-only research and an
+  architecture recommendation.
+- **Follow-up:** If adopted, define a bank-owned Agent ID desired-state schema,
+  privileged provisioning pipeline, approval matrix, independent read-back
+  validation, and drift-detection process before promoting applications beyond
+  `local`.
+
+## 2026-10-16 16:26 EDT - Publish accumulated LOB and Agent 365 work
+
+- **Status:** Planned
+- **Scope:** Repository, GitHub
+- **Requested by:** User
+- **Purpose:** Publish the accumulated Agent 365 guidance, LOB application
+  inventory and folder reorganization, APIM-backed Markets agents, Wealth
+  verification harness, environment lifecycle guidance, and multinational
+  rollout strategy to the repository's `main` branch.
+- **Change:** Validate the complete nonignored worktree, stage the intended
+  repository changes, create one commit with the required co-author trailer,
+  and push `main` to `origin`. Exclude the unrelated zero-byte
+  `A365/rollout_timeline.md` placeholder and all ignored local `.env` files,
+  generated Agent 365 results, credentials, caches, and workstation state. Do
+  not deploy an agent, create or modify an identity or blueprint, grant
+  consent, or change Azure or tenant state.
+- **Result:** Pending.
+- **Validation:** Pending.
+- **Rollback:** Before push, unstage or correct the affected path. After push,
+  publish a follow-up correction or an explicit revert commit; do not rewrite
+  shared branch history.
+- **Follow-up:** Pending.

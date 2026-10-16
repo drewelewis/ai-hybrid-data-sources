@@ -36,9 +36,10 @@ Agent Identity Blueprint
   |
   +-- BlueprintPrincipal
   |
-  +-- Agent Identity: local-dev
-  +-- Agent Identity: test
-  +-- Agent Identity: production
+  +-- Agent Identity: local
+  +-- Agent Identity: dev
+  +-- Agent Identity: tst
+  +-- Agent Identity: prd
   +-- Agent Identity: customer-001
 ```
 
@@ -210,7 +211,7 @@ Use a blueprint when a custom or externally hosted agent must appear in Agent
 
 Examples:
 
-- Development, test, and production instances.
+- On-premises `local`, `dev`, `tst`, and `prd` instances.
 - A separate instance per business unit.
 - A separate instance per geography.
 - A separate instance per customer tenant.
@@ -332,8 +333,9 @@ boundary?"
 
 ### Environment guidance
 
-Development and production can use separate agent identities under one
-blueprint if sharing the blueprint credential boundary is acceptable.
+For this repository, every agent runtime remains on premises and uses separate
+`local`, `dev`, `tst`, and `prd` identities. Those identities can remain under
+one blueprint if sharing its credential boundary is acceptable.
 
 Use separate blueprints when production must have:
 
@@ -355,12 +357,11 @@ Supported blueprint credential types include:
 - Certificates and cryptographic keys.
 - Client secrets.
 
-Recommended order:
+Recommended order for this on-premises estate:
 
-1. Managed identity plus federated identity credential.
-2. Workload identity federation.
-3. Certificate where federation is not available.
-4. Client secret only for constrained local development or transition.
+1. Workload identity federation when the on-premises platform supports it.
+2. Certificate where federation is not available.
+3. Client secret only for constrained `local` development or transition.
 
 ### 9.2 Why a shared credential can still identify an instance
 
@@ -640,7 +641,7 @@ agent user accounts.
 
 ```text
 Blueprint: expense-review-agent
-  +-- Agent identity: expense-review-prod
+  +-- Agent identity: expense-review-prd
 ```
 
 Good for a simple internal production agent.
@@ -649,9 +650,10 @@ Good for a simple internal production agent.
 
 ```text
 Blueprint: trading-platform-agent
+  +-- Agent identity: trading-platform-local
   +-- Agent identity: trading-platform-dev
-  +-- Agent identity: trading-platform-test
-  +-- Agent identity: trading-platform-prod
+  +-- Agent identity: trading-platform-tst
+  +-- Agent identity: trading-platform-prd
 ```
 
 Good when the environments can safely share a blueprint credential boundary.
@@ -808,11 +810,11 @@ The supported agent token flow uses the blueprint credential as the parent
 proof and obtains a token for a specific child agent identity. The resulting
 token and audit trail identify the instance.
 
-### Should development and production use the same blueprint?
+### Should environments use the same blueprint?
 
 Only if sharing credentials and inherited permissions is acceptable. Use
-separate blueprints when production needs an independent trust, ownership, or
-incident boundary.
+separate blueprints when `prd` needs an independent trust, ownership, or
+incident boundary. Every environment still receives a separate agent identity.
 
 ### Do I need a blueprint for a single agent instance?
 
