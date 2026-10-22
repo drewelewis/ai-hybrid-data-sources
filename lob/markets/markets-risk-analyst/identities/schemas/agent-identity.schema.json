@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.contoso.bank/agent-id/v1alpha1/agent-identity.schema.json",
+  "title": "Contoso Bank Agent Identity desired state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "agentid.contoso.bank/v1alpha1"
+    },
+    "kind": {
+      "const": "AgentIdentity"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "labels"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lob",
+            "applicationFamily",
+            "environment",
+            "instanceKey"
+          ],
+          "properties": {
+            "lob": {
+              "const": "markets"
+            },
+            "applicationFamily": {
+              "const": "markets-risk-analyst"
+            },
+            "environment": {
+              "$ref": "#/$defs/environment"
+            },
+            "instanceKey": {
+              "$ref": "#/$defs/resourceKey"
+            }
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "displayName",
+        "blueprintRef",
+        "environment",
+        "deployment",
+        "sponsorRefs",
+        "ownerRefs",
+        "tags",
+        "customSecurityAttributes",
+        "permissions",
+        "agent365Registration",
+        "apim",
+        "lifecycle"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blueprintRef": {
+          "type": "string",
+          "pattern": "^markets-risk-analyst-(?:nonprod|prd)$"
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
+        },
+        "deployment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hosting",
+            "instance",
+            "region",
+            "legalEntity"
+          ],
+          "properties": {
+            "hosting": {
+              "const": "onPremises"
+            },
+            "instance": {
+              "$ref": "#/$defs/resourceKey"
+            },
+            "region": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "legalEntity": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "sponsorRefs": {
+          "$ref": "#/$defs/principalRefs"
+        },
+        "ownerRefs": {
+          "$ref": "#/$defs/principalRefs"
+        },
+        "tags": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "customSecurityAttributes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "Environment",
+            "Department",
+            "DataSensitivity",
+            "RiskTier"
+          ],
+          "properties": {
+            "Environment": {
+              "$ref": "#/$defs/environment"
+            },
+            "Department": {
+              "const": "Markets"
+            },
+            "DataSensitivity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "RiskTier": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directAssignments"
+          ],
+          "properties": {
+            "directAssignments": {
+              "type": "array",
+              "maxItems": 0
+            }
+          }
+        },
+        "agent365Registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "desired",
+            "ownerRef"
+          ],
+          "properties": {
+            "desired": {
+              "type": "boolean"
+            },
+            "ownerRef": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "apim": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "productRef"
+          ],
+          "properties": {
+            "productRef": {
+              "type": "string",
+              "pattern": "^markets-risk-analyst-(?:local|dev|tst|prd)(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?$"
+            }
+          }
+        },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "provisioningEnabled"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "proposed",
+                "approved",
+                "provisioned",
+                "retired"
+              ]
+            },
+            "provisioningEnabled": {
+              "type": "boolean"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "provisioningEnabled": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "provisioningEnabled"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "approved",
+                      "provisioned"
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "const": "retired"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "provisioningEnabled": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "environment": {
+      "enum": [
+        "local",
+        "dev",
+        "tst",
+        "prd"
+      ]
+    },
+    "resourceKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "principalRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principalType",
+          "principalRef"
+        ],
+        "properties": {
+          "principalType": {
+            "enum": [
+              "group",
+              "servicePrincipal",
+              "user"
+            ]
+          },
+          "principalRef": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

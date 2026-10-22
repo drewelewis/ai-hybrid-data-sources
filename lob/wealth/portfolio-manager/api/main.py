@@ -7,6 +7,8 @@ Endpoints:
     GET  /                                              - API info and endpoint map
     POST /chat                                          - Natural-language chat with the agent
     POST /clear_session                                 - Clear conversation history for a session
+    POST /calendar/briefing/decision                     - Confirm/cancel a meeting briefing update
+    POST /calendar/meeting/decision                      - Confirm/cancel a new invitation
     GET  /accounts                                      - List all distinct account IDs
     GET  /portfolio/summary/all                         - Net positions for ALL accounts (one query)
     GET  /portfolio/{account_id}                        - Portfolio summary for one account
@@ -22,7 +24,9 @@ Endpoints:
 
 import os
 import asyncio
-from typing import Dict, Optional, Any
+from datetime import datetime, timezone
+from uuid import UUID
+from typing import Dict, Literal, Optional, Any
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -33,7 +37,14 @@ from agent_framework import AgentThread
 from agents.trading_platform_agent import create_trading_platform_agent
 from agents.model_endpoint_config import load_model_endpoint_config
 from api.model_errors import model_error_to_http_exception
-from api.user_identity import EntraUserTokenValidator, UserTokenValidationError
+from api.user_identity import (
+    EntraUserTokenValidator, UserTokenValidationError, ValidatedUserIdentity,
+)
+from operations.graph_operations import (
+    ACCESS_SCOPE, CalendarBriefingProposal, CalendarMeetingProposal, GraphCalendarError,
+    GraphCalendarSettings, GraphOperations, SCHEDULING_ZONE,
+)
+from tools.graph_tool import PortfolioReviewCalendar
 from observability.a365 import (
     a365_invoke_scope,
     flush_a365_telemetry,
@@ -86,20 +97,37 @@ app.add_middleware(
 agent       = None                          # TradingPlatformAgent (ChatAgent)
 client_supplied_auth = False
 user_token_validator: EntraUserTokenValidator | None = None
+model_endpoint_mode: str | None = None
+graph_calendar_settings: GraphCalendarSettings | None = None
+graph_user_token_validator: EntraUserTokenValidator | None = None
 db_ops      = TradingPlatformOperations()   # Direct DB access for structured endpoints
-sessions: Dict[str, AgentThread] = {}       # session_id -> AgentThread
+sessions: Dict[str | tuple[str, str, str], AgentThread] = {}
+pending_calendar_briefings: dict[
+    str | tuple[str, str, str], CalendarBriefingProposal | CalendarMeetingProposal
+] = {}
+calendar_creation_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
 
 # ── Request / response models ──────────────────────────────────────────────────
 class ChatRequest(BaseModel):
     session_id: str  = Field(..., description="Unique session identifier")
     message:    str  = Field(..., description="Natural-language message for the agent")
+    verification_id: UUID | None = Field(
+        default=None, description="Optional test correlation ID; not caller identity."
+    )
 
 
 class ChatResponse(BaseModel):
     session_id: str
     response:   str
     agent:      str = "TradingPlatformAgent"
+    calendar_update: dict[str, Any] | None = None
+
+
+class CalendarBriefingDecision(BaseModel):
+    session_id: str
+    proposal_id: UUID
+    decision: Literal["confirm", "cancel"]
 
 
 class ClearSessionRequest(BaseModel):
@@ -128,8 +156,18 @@ class QueryRequest(BaseModel):
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
-    global agent, client_supplied_auth, user_token_validator
-    load_model_endpoint_config()
+    global agent, client_supplied_auth, user_token_validator, model_endpoint_mode
+    global graph_calendar_settings, graph_user_token_validator
+    graph_calendar_settings = GraphCalendarSettings.from_environment()
+    graph_user_token_validator = None
+    if graph_calendar_settings is not None:
+        graph_user_token_validator = EntraUserTokenValidator(
+            graph_calendar_settings.tenant_id,
+            f"api://{graph_calendar_settings.blueprint_client_id}/.default",
+            required_scope=ACCESS_SCOPE,
+        )
+    model_config = load_model_endpoint_config()
+    model_endpoint_mode = model_config.mode
     client_supplied_auth = (
         os.getenv("AZURE_AUTH_MODE", "default").strip().lower() == "device-code"
     )
@@ -137,7 +175,7 @@ async def startup():
     print(f"[{SERVICE_NAME}] Initializing TradingPlatformAgent ...")
     if not client_supplied_auth:
         agent = await create_trading_platform_agent()
-    elif os.getenv("ENABLE_A365_OBSERVABILITY", "").strip().lower() in {
+    elif graph_calendar_settings is not None or os.getenv("ENABLE_A365_OBSERVABILITY", "").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -146,7 +184,7 @@ async def startup():
         try:
             user_token_validator = EntraUserTokenValidator(
                 os.getenv("A365_TENANT_ID", ""),
-                os.getenv("APIM_TOKEN_SCOPE", ""),
+                model_config.token_scope,
             )
         except UserTokenValidationError as error:
             raise RuntimeError(
@@ -170,7 +208,7 @@ async def shutdown():
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-def _get_thread(session_id: str) -> AgentThread:
+def _get_thread(session_id: str | tuple[str, str, str]) -> AgentThread:
     """Return the existing AgentThread for a session, or create a new one."""
     if session_id not in sessions:
         sessions[session_id] = AgentThread()
@@ -187,6 +225,38 @@ def _require_db():
         raise HTTPException(status_code=503, detail="Database not connected yet.")
 
 
+async def _calendar_caller(
+    agent_authorization: str | None,
+) -> tuple[ValidatedUserIdentity | None, GraphOperations | None]:
+    if graph_calendar_settings is None:
+        return None, None
+    if graph_user_token_validator is None:
+        raise HTTPException(status_code=503, detail="Calendar authentication is not initialized.")
+    scheme, _, token = (
+        agent_authorization if isinstance(agent_authorization, str) else ""
+    ).partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=401,
+            detail="X-Agent-Authorization must contain a blueprint-audience bearer token.",
+        )
+    try:
+        caller = await asyncio.to_thread(graph_user_token_validator.validate, token)
+    except UserTokenValidationError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    return caller, GraphOperations(graph_calendar_settings, token)
+
+
+def _session_key(
+    session_id: str, caller: ValidatedUserIdentity | None
+) -> str | tuple[str, str, str]:
+    if graph_calendar_settings is not None:
+        if caller is None:
+            raise HTTPException(status_code=401, detail="A calendar caller is required.")
+        return caller.tenant_id, caller.object_id, session_id
+    return session_id
+
+
 # ── Root & health ──────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
@@ -198,6 +268,8 @@ async def root():
             "health":               "GET  /health",
             "chat":                 "POST /chat",
             "clear_session":        "POST /clear_session",
+            "calendar_briefing":     "POST /calendar/briefing/decision",
+            "calendar_meeting":      "POST /calendar/meeting/decision",
             "accounts":             "GET  /accounts",
             "all_summaries":        "GET  /portfolio/summary/all",
             "portfolio":            "GET  /portfolio/{account_id}",
@@ -224,15 +296,30 @@ async def health():
         "agent":     "ready" if agent or client_supplied_auth else "initializing",
         "database":  "connected" if db_healthy else "disconnected",
         "framework": "Microsoft Agent Framework",
+        "model_endpoint_mode": model_endpoint_mode,
+        "verification_correlation": "model_header_uuid_v1",
         "a365_observability": get_a365_status(),
+        "graph_calendar": {
+            "enabled": graph_calendar_settings is not None,
+            "authentication": "agent_identity_user_delegated_obo",
+            "briefing_write_enabled": (
+                graph_calendar_settings is not None and graph_calendar_settings.write_enabled
+            ),
+            "meeting_creation_enabled": (
+                graph_calendar_settings is not None and graph_calendar_settings.write_enabled
+            ),
+            "scheduling_time_zone": SCHEDULING_ZONE.key,
+            "scheduling_working_hours": "Weekdays 09:00-17:00",
+        },
     }
 
 
 # ── Chat ───────────────────────────────────────────────────────────────────────
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 async def chat(
     request: ChatRequest,
     authorization: Optional[str] = Header(default=None),
+    agent_authorization: Optional[str] = Header(default=None, alias="X-Agent-Authorization"),
 ):
     """
     Natural-language chat with the Trading Platform Agent.
@@ -242,9 +329,8 @@ async def chat(
         { "session_id": "user-1", "message": "Show me the portfolio for account A100" }
     """
     _require_agent()
-    await prepare_a365_telemetry()
     token = ""
-    pseudonymous_user_id = None
+    caller = None
     if client_supplied_auth:
         scheme, _, token = (authorization or "").partition(" ")
         if scheme.lower() != "bearer" or not token:
@@ -254,34 +340,63 @@ async def chat(
             )
         if user_token_validator is not None:
             try:
-                pseudonymous_user_id = await asyncio.to_thread(
-                    user_token_validator.pseudonymous_user_id, token
+                caller = await asyncio.to_thread(
+                    user_token_validator.validate, token
                 )
             except UserTokenValidationError as error:
                 raise HTTPException(
                     status_code=401,
                     detail=str(error),
                 ) from error
+    calendar_caller, calendar_ops = await _calendar_caller(agent_authorization)
+    if calendar_caller is not None:
+        if caller is not None and (
+            caller.tenant_id, caller.object_id
+        ) != (calendar_caller.tenant_id, calendar_caller.object_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Model and calendar tokens must identify the same user.",
+            )
+        caller = calendar_caller
+    session_key = _session_key(request.session_id, caller)
+    calendar = PortfolioReviewCalendar(calendar_ops) if calendar_ops is not None else None
+    pending_calendar_briefings.pop(session_key, None)
+    await prepare_a365_telemetry()
     try:
         with a365_invoke_scope(
             request.session_id,
-            pseudonymous_user_id,
+            caller.object_id if caller else None,
             request.message,
+            user_email=caller.upn if caller else None,
+            user_name=caller.name if caller else None,
         ) as telemetry_scope:
             try:
                 request_agent = agent
                 if client_supplied_auth:
                     request_agent = await create_trading_platform_agent(
                         ad_token_provider=lambda: token,
+                        verification_id=request.verification_id,
+                        calendar=calendar,
+                    )
+                elif request.verification_id is not None or calendar is not None:
+                    request_agent = await create_trading_platform_agent(
+                        verification_id=request.verification_id,
+                        calendar=calendar,
                     )
 
-                thread = _get_thread(request.session_id)
+                thread = _get_thread(session_key)
                 response = await request_agent.run(request.message, thread=thread)
                 response_text = response.text or ""
                 record_a365_response(telemetry_scope, response_text)
+                proposal = (
+                    calendar_ops.pending_meeting or calendar_ops.pending_briefing
+                ) if calendar_ops is not None else None
+                if proposal is not None:
+                    pending_calendar_briefings[session_key] = proposal
                 return ChatResponse(
                     session_id=request.session_id,
                     response=response_text,
+                    calendar_update=proposal.preview() if proposal is not None else None,
                 )
             except Exception as error:
                 if telemetry_scope is not None:
@@ -292,15 +407,69 @@ async def chat(
     except Exception as error:
         http_error = model_error_to_http_exception(error)
         if http_error.status_code == 429:
-            sessions.pop(request.session_id, None)
+            sessions.pop(session_key, None)
         raise http_error from error
 
 
 @app.post("/clear_session")
-async def clear_session(request: ClearSessionRequest):
+async def clear_session(
+    request: ClearSessionRequest,
+    agent_authorization: Optional[str] = Header(default=None, alias="X-Agent-Authorization"),
+):
     """Clear the conversation history for a session."""
-    sessions.pop(request.session_id, None)
+    caller, _ = await _calendar_caller(agent_authorization)
+    session_key = _session_key(request.session_id, caller)
+    sessions.pop(session_key, None)
+    pending_calendar_briefings.pop(session_key, None)
     return {"status": "cleared", "session_id": request.session_id}
+
+
+@app.post("/calendar/briefing/decision")
+async def calendar_briefing_decision(
+    request: CalendarBriefingDecision,
+    agent_authorization: Optional[str] = Header(default=None, alias="X-Agent-Authorization"),
+):
+    """Confirm or cancel the exact preview; never invokes the model."""
+    return await _calendar_decision(request, agent_authorization, creating=False)
+
+
+@app.post("/calendar/meeting/decision")
+async def calendar_meeting_decision(
+    request: CalendarBriefingDecision,
+    agent_authorization: Optional[str] = Header(default=None, alias="X-Agent-Authorization"),
+):
+    """Create the exact proposed invitation only after explicit caller approval."""
+    return await _calendar_decision(request, agent_authorization, creating=True)
+
+
+async def _calendar_decision(
+    request: CalendarBriefingDecision, agent_authorization: str | None, *, creating: bool,
+):
+    caller, operations = await _calendar_caller(agent_authorization)
+    if caller is None or operations is None or not operations.settings.write_enabled:
+        raise HTTPException(status_code=403, detail="Calendar writes are disabled.")
+    session_key = _session_key(request.session_id, caller)
+    proposal = pending_calendar_briefings.get(session_key)
+    if (
+        proposal is None or proposal.proposal_id != str(request.proposal_id)
+        or isinstance(proposal, CalendarMeetingProposal) != creating
+    ):
+        raise HTTPException(status_code=409, detail="No matching pending briefing for this caller and session.")
+    pending_calendar_briefings.pop(session_key)
+    if request.decision == "cancel":
+        return {"status": "cancelled", "message": "Meeting unchanged."}
+    if proposal.expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=409, detail="The briefing approval expired; prepare it again.")
+    try:
+        if isinstance(proposal, CalendarMeetingProposal):
+            lock = calendar_creation_locks.setdefault(
+                (caller.tenant_id, caller.object_id), asyncio.Lock(),
+            )
+            async with lock:
+                return await operations.confirm_meeting(proposal)
+        return await operations.confirm_briefing(proposal)
+    except GraphCalendarError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
 
 
 # ── Accounts endpoint ─────────────────────────────────────────────────────────
@@ -540,9 +709,9 @@ async def dynamic_query(request: QueryRequest):
 @app.get("/agent/status")
 async def agent_status():
     """Trading Platform Agent capabilities and registered tools."""
-    return {
+    result: dict[str, Any] = {
         "agent":       "TradingPlatformAgent",
-        "status":      "ready" if agent else "initializing",
+        "status":      "ready" if agent or client_supplied_auth else "initializing",
         "description": (
             "AI agent for portfolio event ledger queries and trade operations."
         ),
@@ -572,5 +741,41 @@ async def agent_status():
             "ticker_events":        "GET  /ticker/{ticker_symbol}/events",
             "insert_event":         "POST /events",
             "query":                "POST /query",
+            "calendar_briefing":    "POST /calendar/briefing/decision",
+            "calendar_meeting":     "POST /calendar/meeting/decision",
         },
     }
+    if graph_calendar_settings is not None:
+        result["tools"] = [
+            tool for tool in result["tools"] if tool["name"] != "insert_trade_event"
+        ]
+        result["tools"].append({
+            "name": "get_portfolio_review_meetings",
+            "description": "Read the signed-in user's marked calendar meetings (one day)",
+        })
+        result["tools"].extend([
+            {"name": "get_calendar_schedule", "description": "Read all primary-calendar events for up to 31 days"},
+            {"name": "find_available_slots", "description": "Find weekday 09:00-17:00 Eastern openings; all events block"},
+        ])
+        if graph_calendar_settings.write_enabled:
+            result["tools"].append({
+                "name": "prepare_portfolio_review_briefing",
+                "description": "Propose a meeting-body update; separate explicit approval required",
+            })
+            result["tools"].append({
+                "name": "prepare_customer_meeting",
+                "description": "Propose a new customer invitation; separate explicit approval required",
+            })
+    result["graph_calendar"] = {
+        "enabled": graph_calendar_settings is not None,
+        "read_only_agent": (
+            graph_calendar_settings is not None and not graph_calendar_settings.write_enabled
+        ),
+        "briefing_write_enabled": (
+            graph_calendar_settings is not None and graph_calendar_settings.write_enabled
+        ),
+        "meeting_creation_enabled": (
+            graph_calendar_settings is not None and graph_calendar_settings.write_enabled
+        ),
+    }
+    return result

@@ -352,6 +352,9 @@ class A365Runtime:
         session_id: str,
         user_id: str | None = None,
         input_message: str | None = None,
+        *,
+        user_email: str | None = None,
+        user_name: str | None = None,
     ) -> Iterator[object | None]:
         if not self.resolve_token(
             self.settings.agent_id, self.settings.tenant_id
@@ -393,6 +396,9 @@ class A365Runtime:
             .agent_id(self.settings.agent_id)
             .channel_name(self.settings.channel_name)
             .conversation_id(conversation_id)
+            .user_id(user_id)
+            .user_email(user_email if user_id else None)
+            .user_name(user_name if user_id else None)
             .build()
         )
         scope_details = InvokeAgentScopeDetails(
@@ -402,7 +408,13 @@ class A365Runtime:
             )
         )
         caller_details = (
-            CallerDetails(user_details=UserDetails(user_id=user_id))
+            CallerDetails(
+                user_details=UserDetails(
+                    user_id=user_id,
+                    user_email=user_email,
+                    user_name=user_name,
+                )
+            )
             if user_id
             else None
         )
@@ -541,8 +553,14 @@ def a365_invoke_scope(
     session_id: str,
     user_id: str | None = None,
     input_message: str | None = None,
+    *,
+    user_email: str | None = None,
+    user_name: str | None = None,
 ) -> Iterator[object | None]:
-    return _runtime.invoke_scope(session_id, user_id, input_message)
+    return _runtime.invoke_scope(
+        session_id, user_id, input_message,
+        user_email=user_email, user_name=user_name,
+    )
 
 
 def record_a365_response(scope: object | None, response: str) -> None:

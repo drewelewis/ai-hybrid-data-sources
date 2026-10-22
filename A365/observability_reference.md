@@ -76,11 +76,18 @@ email address, account ID, or bearer-token claim as a conversation ID.
 
 When device-code authentication and Agent 365 observability are enabled, the
 API validates the console access token's signature, issuer, audience, expiry,
-tenant, and object ID. It passes the SHA-256 hash of the validated Entra tenant
-and object IDs through `CallerDetails(UserDetails(user_id=...))`. This makes
-invocations from the same user correlatable and different users distinguishable
-without exporting either raw identifier. Names, email addresses, and access
-tokens remain excluded.
+tenant, and object ID. It passes the actual validated human Entra object ID
+through `CallerDetails(UserDetails(user_id=...))`, with the available caller
+UPN (`preferred_username` or legacy `upn`) and display name. Explicit
+app-only tokens are rejected as human callers. Caller fields also populate
+request-scoped SDK baggage so supported child spans receive that context.
+
+On `InvokeAgent` records, `user.id` maps to `UserKey` and `user.email`
+maps to `UserId`. A hash does not meet the documented object-ID contract.
+An all-zero `AgentId` is expected when no calling agent exists; the invoked
+agent is `TargetAgentId`. Tool/inference `UserKey` and `UserId` can refer
+to the agent's own user account, not the human: use root/child correlation.
+See the [Microsoft attribute reference](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/observability-attribute-reference).
 
 ## Status and errors
 
@@ -111,8 +118,6 @@ tool results, or model responses. Never export:
 
 - APIM keys.
 - Bearer tokens.
-- Raw Entra tenant and user object IDs.
-- User names and email addresses.
 - Device codes.
 - Database credentials.
 - Full exception messages that could contain any of the above.
@@ -121,6 +126,12 @@ Full-content recording must be time-bounded and intentional. Access, retention,
 residency, and downstream Purview/Defender policies must be approved before the
 test because this telemetry can contain sensitive business data. Return the
 setting to `false` and verify the effective mode when the test is complete.
+
+Validated caller object ID and available UPN/display name are approved
+security identity metadata, alongside registered tenant and agent IDs.
+They remain enabled independently of content recording. Restrict access and
+retention accordingly; do not copy tokens or arbitrary claims into telemetry
+or console logs. Conversation and session identifiers remain hashed.
 
 ## Sampling and cardinality
 

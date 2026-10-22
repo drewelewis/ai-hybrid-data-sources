@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.contoso.bank/agent-id/v1alpha1/instance-overlay.schema.json",
+  "title": "Markets Risk Analyst instance overlay",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "instanceKey",
+    "environment",
+    "displayName",
+    "blueprintRef",
+    "ownerRefs",
+    "deployment",
+    "lifecycle"
+  ],
+  "properties": {
+    "instanceKey": {
+      "$ref": "#/$defs/resourceKey"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blueprintRef": {
+      "type": "string",
+      "pattern": "^markets-risk-analyst-(?:nonprod|prd)$"
+    },
+    "sponsorRefs": {
+      "$ref": "#/$defs/principalRefs"
+    },
+    "ownerRefs": {
+      "$ref": "#/$defs/principalRefs"
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region",
+        "legalEntity"
+      ],
+      "properties": {
+        "region": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legalEntity": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    }
+  },
+  "$defs": {
+    "environment": {
+      "enum": [
+        "local",
+        "dev",
+        "tst",
+        "prd"
+      ]
+    },
+    "resourceKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "principalRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principalType",
+          "principalRef"
+        ],
+        "properties": {
+          "principalType": {
+            "enum": [
+              "group",
+              "servicePrincipal",
+              "user"
+            ]
+          },
+          "principalRef": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "provisioningEnabled"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "proposed",
+            "approved",
+            "provisioned",
+            "retired"
+          ]
+        },
+        "provisioningEnabled": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provisioningEnabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "provisioningEnabled"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "approved",
+                  "provisioned"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "retired"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provisioningEnabled": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

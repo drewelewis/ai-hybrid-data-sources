@@ -43,12 +43,12 @@ FastAPI API
   +-- Validate user token
   |     |
   |     +-- Validate signature, issuer, audience, expiry, tenant, and oid
-  |     +-- Hash tenant ID + object ID into a pseudonymous user ID
+  |     +-- Retain validated object ID and available caller UPN/name
   |
   +-- Create InvokeAgent scope
   |     |
   |     +-- Registered Agent ID and blueprint
-  |     +-- Pseudonymous caller identity
+  |     +-- Validated Entra caller identity
   |     +-- Hashed conversation ID
   |     +-- Channel and service endpoint
   |     +-- Optional prompt content
@@ -86,12 +86,12 @@ processing.
 | Process bootstrap | [main.py](../lob/wealth/portfolio-manager/main.py) | Initializes Agent 365 observability before Uvicorn imports instrumented modules |
 | Interactive client | [chat.py](../lob/wealth/portfolio-manager/chat.py) | Performs device-code authentication, refreshes the user token, and calls `/chat` |
 | API request lifecycle | [api/main.py](../lob/wealth/portfolio-manager/api/main.py) | Validates the caller, opens the root span, runs the agent, and records success or failure |
-| User validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validates Entra token claims and produces the pseudonymous user ID |
+| User validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validates Entra token claims and returns the human object ID and available UPN/name |
 | Agent construction | [agents/trading_platform_agent.py](../lob/wealth/portfolio-manager/agents/trading_platform_agent.py) | Binds the registered Agent ID to the Microsoft Agent Framework `ChatAgent` |
 | Telemetry runtime | [observability/a365.py](../lob/wealth/portfolio-manager/observability/a365.py) | Handles Agent 365 token exchange, exporter configuration, spans, content, status, and flush |
 | Configuration | [LOB application README](../lob/wealth/portfolio-manager/README.md) | Documents runtime settings without storing secrets |
 | Observability tests | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) | Verifies exporter, scope, content, and identity behavior |
-| User identity tests | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) | Verifies validation and pseudonymization |
+| User identity tests | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) | Verifies token validation, caller fields, and API forwarding |
 | Console auth tests | [test_chat_auth.py](../lob/wealth/portfolio-manager/test_chat_auth.py) | Verifies token reuse, refresh, and credential cleanup |
 
 ## 1. Bootstrap telemetry before the application
@@ -195,7 +195,7 @@ its initial sign-in.
 To switch test users, exit the console, start it again, and explicitly select
 another account during device-code authentication.
 
-## 6. Validate and pseudonymize the caller
+## 6. Validate and attribute the human caller
 
 The `/chat` endpoint receives the user bearer token and passes it to
 `EntraUserTokenValidator`.
@@ -210,15 +210,12 @@ Validation includes:
 - Tenant ID.
 - Entra object ID.
 
-After validation, the API computes:
-
-```text
-SHA-256("<tenant-id>:<object-id>")
-```
-
-This value is stable for the same user in the same tenant and different for
-different object IDs. Raw IDs, names, email addresses, device codes, and tokens
-are not exported.
+After validation, the API retains the actual Entra object ID for `user.id`,
+plus the available `preferred_username` or legacy `upn` and display `name`.
+Explicit app-only tokens cannot be used to attribute a human caller.
+These approved security identity fields are exported even in metadata-only
+mode; tokens, device codes, and unrelated claims are never exported.
+Conversation/session IDs remain hashed and are not user identifiers.
 
 ## 7. Create one root scope per invocation
 
@@ -228,9 +225,11 @@ Every `/chat` request calls `a365_invoke_scope`, which creates:
 - Hashed session and conversation IDs.
 - Stable channel information.
 - `AgentDetails` with Agent ID, blueprint, tenant, provider, and version.
-- `CallerDetails(UserDetails(user_id=...))` with the pseudonymous end user.
+- `CallerDetails(UserDetails(user_id=..., user_email=..., user_name=...))`
+  with validated human identity.
 - `InvokeAgentScopeDetails` with the API endpoint.
-- Agent 365 baggage for downstream correlation.
+- Request-scoped Agent 365 baggage with caller identity for downstream
+  correlation; exiting the scope restores the previous context.
 
 The root scope is started with:
 
@@ -343,7 +342,12 @@ Use the [verification process](./verification_process.md):
 4. **Assert in services:** Confirm the event in Agent 365, Purview, and
    Defender after their respective ingestion delays.
 5. **Repeat with another user:** Restart the console, sign in with another
-   account, and confirm a different pseudonymous caller.
+      account, and confirm its distinct Entra object ID on the root invocation.
+
+   In Defender, human caller `user.id` maps to `InvokeAgent` `UserKey`; the
+   caller UPN maps to `UserId`. Tool and inference user fields can represent
+   the agent's own user account instead, so correlate children with the root
+   using trace, parent, and conversation identifiers.
 
 Do not treat local exporter success as proof of portal ingestion. Capture
 evidence for each destination separately.

@@ -558,8 +558,19 @@ Depending on configuration, it can:
 - Request or grant OAuth2 consent.
 - Write generated IDs, endpoints, and credentials.
 
-For this repository's already-hosted Trading Platform Agent, granular
-`setup blueprint --no-endpoint` was safer than `setup all`.
+Microsoft's current
+[single-agent onboarding walkthrough](https://learn.microsoft.com/en-us/microsoft-agent-365/admin/agent-365-onboarding-cli)
+explicitly distinguishes config-free standard-agent setup: with no project
+configuration, it assumes external hosting, creates identity and registration
+objects, and does not create Azure hosting or update the application.
+Its example uses `--aiteammate false` and defaults to OBO; review permissions
+and authentication before using it for another scenario.
+
+The Trading Platform pilot used granular `setup blueprint --no-endpoint`.
+That is a historical implementation choice, not proof that config-free
+`setup all` creates hosting or should be avoided for every existing agent.
+Use the [onboarding guide](./onboarding_agents.md) for the current supported
+single-agent/bulk choice and separate runtime telemetry acceptance.
 
 ## Inspect Entra configuration
 
@@ -779,6 +790,10 @@ deleting the wrong objects. Resolve the mismatch; do not bypass it casually.
 9. Update the change ledger and retained inventory.
 
 ## Automation and CI/CD
+
+Use the [DevOps and GitOps guide](./devops.md) to decide whether a task belongs
+in Agent 365 CLI, the official bulk-onboarding workflow, or the controlled
+Graph provisioning adapter.
 
 The CLI is interactive by design for several authentication and consent
 operations. Before placing it in automation:

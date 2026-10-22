@@ -13,7 +13,7 @@ repeatable method for adding:
 - Microsoft Entra Agent ID identity and lifecycle governance.
 - Microsoft Agent 365 registration and inventory.
 - Microsoft OpenTelemetry instrumentation and Agent 365 export.
-- Per-invocation agent, conversation, and pseudonymous caller correlation.
+- Per-invocation agent, conversation, and validated Entra caller attribution.
 - Purview, Defender, and Microsoft 365 Admin Center downstream visibility.
 - Explicit privacy, failure-isolation, validation, and rollback controls.
 
@@ -135,8 +135,8 @@ The implementation has several credentials with different trust purposes:
 
 These credentials are not interchangeable.
 
-The user token is not the Agent 365 exporter token. Passing a pseudonymous
-caller ID into telemetry does not grant that user access to Agent 365 or any
+The user token is not the Agent 365 exporter token. Recording the validated
+caller identity in telemetry does not grant that user access to Agent 365 or any
 downstream resource.
 
 ### 4.4 Responsibility by application layer
@@ -238,7 +238,7 @@ only for an approved, time-bounded nonproduction policy test.
 | Process bootstrap | [main.py](../lob/wealth/portfolio-manager/main.py) | Initialize telemetry before Uvicorn imports the API |
 | Agent construction | [agents/trading_platform_agent.py](../lob/wealth/portfolio-manager/agents/trading_platform_agent.py) | Bind Agent ID and define model, instructions, and tools |
 | Request lifecycle | [api/main.py](../lob/wealth/portfolio-manager/api/main.py) | Validate caller and wrap `agent.run` in one root scope |
-| Caller validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validate Entra token and derive pseudonymous caller ID |
+| Caller validation | [api/user_identity.py](../lob/wealth/portfolio-manager/api/user_identity.py) | Validate Entra token and return the human object ID and available UPN/name |
 | Telemetry runtime | [observability/a365.py](../lob/wealth/portfolio-manager/observability/a365.py) | S2S authentication, scope creation, exporter, status, and flush |
 | Interactive client | [chat.py](../lob/wealth/portfolio-manager/chat.py) | Acquire and refresh the human user's device-code token |
 | Business operations | [operations/trading_platform_operations.py](../lob/wealth/portfolio-manager/operations/trading_platform_operations.py) | PostgreSQL-backed LOB operations |
@@ -430,7 +430,7 @@ other account.
 This is application authentication, not Agent 365 OBO export. Agent 365
 telemetry still uses the app-only S2S Agent Identity token.
 
-### Phase 8: Validate and pseudonymize the caller
+### Phase 8: Validate and attribute the human caller
 
 The API validates:
 
@@ -442,23 +442,31 @@ The API validates:
 - Tenant ID.
 - Entra object ID.
 
-It then computes:
+Explicit app-only tokens are rejected as human callers. After validation,
+the API returns an immutable caller identity containing the tenant and object
+IDs, the available `preferred_username` or legacy `upn`, and `name`.
+Optional identity claims must be strings when present.
 
-```text
-SHA-256("<tenant-id>:<object-id>")
-```
-
-The API MUST pass this value using:
+The API MUST pass the actual validated object ID, not a hash, using:
 
 ```python
 CallerDetails(
-    user_details=UserDetails(user_id=pseudonymous_user_id)
+    user_details=UserDetails(
+        user_id=caller.object_id,
+        user_email=caller.upn,
+        user_name=caller.name,
+    )
 )
 ```
 
 Do not replace this with only a generic OpenTelemetry `user.id` attribute.
-Names, email addresses, raw tenant IDs, raw object IDs, bearer tokens, and
-device codes MUST remain excluded.
+The same caller fields are added to request-scoped SDK baggage for child
+span propagation. On `InvokeAgent` records, `user.id` maps to `UserKey`
+and `user.email` maps to `UserId`. Tool/inference user fields can instead
+describe the agent's own user account; correlate children to the root.
+See the [Microsoft attribute reference](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/observability-attribute-reference).
+Caller identity is approved security metadata even when content recording is
+disabled. Tokens, device codes, and unrelated claims MUST remain excluded.
 
 ### Phase 9: Create one root scope per accepted invocation
 
@@ -468,8 +476,10 @@ agent construction or execution:
 ```python
 with a365_invoke_scope(
     request.session_id,
-    pseudonymous_user_id,
+    caller.object_id if caller else None,
     request.message,
+    user_email=caller.upn if caller else None,
+    user_name=caller.name if caller else None,
 ) as telemetry_scope:
     response = await request_agent.run(request.message, thread=thread)
 ```
@@ -479,7 +489,7 @@ The observability runtime supplies:
 - Hashed conversation and session IDs.
 - Agent ID, blueprint ID, and tenant ID.
 - Agent name, description, provider, and version.
-- Pseudonymous `CallerDetails`.
+- Validated human `CallerDetails`, when available.
 - Channel and API endpoint.
 - Agent 365 baggage.
 - Prompt content only when explicitly enabled.
@@ -562,8 +572,13 @@ Do not export:
 - Holdings, prices, or trade records.
 - Tool arguments or results.
 - SQL text or database results.
-- User names, email addresses, tenant IDs, or object IDs.
 - Tokens, credentials, keys, device codes, or connection strings.
+
+The exception is approved security identity metadata: registered tenant and
+agent IDs, plus the validated human object ID and available UPN/display name.
+These use the SDK's identity fields, not prompt content or general console
+logging. Govern access and retention for this personally identifiable
+metadata independently of `A365_RECORD_CONTENT`.
 
 ### 8.2 Approved nonproduction policy testing
 
@@ -632,7 +647,7 @@ runtime already implements.
 | Agent and caller details | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
 | Metadata-only and full-content modes | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
 | Token refresh lifecycle | [test_a365_observability.py](../lob/wealth/portfolio-manager/test_a365_observability.py) |
-| Human token validation and distinct pseudonyms | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) |
+| Human token validation, exact caller fields, and API forwarding | [test_user_identity.py](../lob/wealth/portfolio-manager/test_user_identity.py) |
 | Device credential reuse and refresh | [test_chat_auth.py](../lob/wealth/portfolio-manager/test_chat_auth.py) |
 | Existing model error behavior | [test_rate_limit_handling.py](../lob/wealth/portfolio-manager/test_rate_limit_handling.py) |
 
@@ -704,8 +719,8 @@ indexing.
 ### Gate C: Privacy
 
 - [ ] Metadata-only is the effective default.
-- [ ] Caller mapping uses a pseudonymous ID.
-- [ ] No raw identity claims are exported.
+- [ ] Caller mapping uses the validated human Entra object ID, not a hash.
+- [ ] Only approved identity claims are exported; user context is request-scoped.
 - [ ] No credentials, tokens, SQL, or business records appear.
 - [ ] Full-content testing has explicit approval and expiry.
 
@@ -757,7 +772,7 @@ Use this sequence:
 7. Bind the registered ID to the framework agent.
 8. Implement the supported S2S token chain.
 9. Put one root scope around the framework's logical run call.
-10. Add supported caller attribution without exporting raw identity.
+10. Add approved caller attribution using validated Entra identity fields.
 11. Validate automatic child instrumentation before adding manual spans.
 12. Define content policy and failure isolation.
 13. Add focused tests before tenant testing.

@@ -186,7 +186,7 @@ exists.
 
 | LOB | Application family | Candidate blueprint | Identity pattern | Indicative wave |
 |---|---|---|---|---|
-| Markets | Markets Risk Analyst | `markets-risk-analyst` | `markets-risk-analyst-<stage>[-<geo>]` | 1 |
+| Markets | Markets Risk Analyst | `markets-risk-analyst-nonprod`; `markets-risk-analyst-prd` | `markets-risk-analyst-<stage>[-<geo>]` | 1 |
 | Markets | Trade Surveillance Analyst | `markets-trade-surveillance` | `markets-trade-surveillance-<stage>[-<geo>]` | 1 |
 | Wealth | Portfolio Manager | Existing `trading-platform-agent` | `trading-platform-agent-<stage>[-<geo>]` | 2 |
 | Banking | Corporate Credit Memo Analyst | `banking-corporate-credit-memo` | `banking-corporate-credit-memo-<stage>[-<geo>]` | 3 |
@@ -196,6 +196,16 @@ exists.
 | Wealth | Client Advisor | `wealth-client-advisor` | `wealth-client-advisor-<stage>[-<geo>]` | 5 |
 | U.S. Personal Banking | Mortgage Servicing Assistant | `uspb-mortgage-servicing-assistant` | `uspb-mortgage-servicing-assistant-<stage>[-<geo>]` | 5 |
 | U.S. Personal Banking | Card Dispute Assistant | `uspb-card-dispute-assistant` | `uspb-card-dispute-assistant-<stage>[-<geo>]` | 5 |
+
+The Markets Risk Analyst implements its proposed nonproduction and production
+boundaries as non-secret
+[desired-state artifacts](../lob/markets/markets-risk-analyst/identities/README.md).
+Its instance overlays separate stage from deployment instance, support names
+such as `markets-risk-analyst-prd-emea`, and carry independently promoted
+lifecycle state. Its closed blueprint schema and renderer require blueprint
+readiness before an identity can enable provisioning. All included artifacts
+remain provisioning-disabled and do not indicate that tenant objects or
+later-stage environments exist.
 
 The existing `trading-platform-agent-local-dev` identity remains the
 grandfathered `local` Portfolio Manager identity. It must not be renamed or
@@ -475,6 +485,11 @@ unrelated documents:
 - approval record and exact artifact/configuration versions promoted.
 
 ### Golden-path automation
+
+Implement this section through the
+[Agent 365 DevOps and GitOps guide](./devops.md), which defines the
+source-of-truth, tool-selection, plan/apply, approval, evidence, drift, and
+rollback model.
 
 Automate:
 

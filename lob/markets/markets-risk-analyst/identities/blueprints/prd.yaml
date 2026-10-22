@@ -1,0 +1,48 @@
+apiVersion: agentid.contoso.bank/v1alpha1
+kind: AgentIdentityBlueprint
+metadata:
+  name: markets-risk-analyst-prd
+  labels:
+    lob: markets
+    applicationFamily: markets-risk-analyst
+    trustBoundary: production
+spec:
+  displayName: Markets Risk Analyst Production
+  description: >-
+    Production identity and permission boundary for approved on-premises
+    Markets Risk Analyst instances.
+  environments:
+    - prd
+  sponsorRefs:
+    - principalType: group
+      principalRef: markets-risk-analyst-business-sponsors
+  ownerRefs:
+    - principalType: servicePrincipal
+      principalRef: markets-agent-identity-production-provisioner
+  tags:
+    - contoso:lob=markets
+    - contoso:application-family=markets-risk-analyst
+    - contoso:trust-boundary=production
+    - contoso:hosting=on-premises
+  credentialPolicy:
+    allowedTypes:
+      - federatedIdentityCredential
+      - certificate
+    clientSecret:
+      allowed: false
+      allowedEnvironments: []
+    privateMaterialLocation: approved-hsm-or-secret-store
+    maximumRotationDays: 365
+  permissions:
+    inheritanceMode: explicit
+    requiredResourceAccess: []
+    reviewRequired: true
+  managerApplications:
+    mode: platformManaged
+  governance:
+    killSwitchScope: markets-risk-analyst-production
+    segregationOfDutiesRequired: true
+    independentProductionApprovalRequired: true
+  lifecycle:
+    state: proposed
+    provisioningEnabled: false

@@ -129,12 +129,15 @@ Controls:
 ## Privacy defaults
 
 - `A365_RECORD_CONTENT=false`
-- No user identity attribute unless required and approved.
-- Conversation IDs are random identifiers.
+- Approved security attribution uses the validated human Entra object ID
+  and available UPN/display name in SDK caller fields, independent of
+  prompt/response recording. Restrict access and retention for this metadata.
+- Conversation/session IDs are hashed identifiers, not user object IDs.
 - No portfolio account correlation.
 - No prompt/response capture.
 - No broad exception serialization.
-- No telemetry enrichment from bearer-token claims.
+- No arbitrary bearer-token claim enrichment; only validated tenant/object
+  identity and approved optional caller UPN/display name are used.
 
 ## Controlled policy-validation exception
 
@@ -149,17 +152,21 @@ reason to capture prompt or response content and not a substitute for Agent
 
 The fixed `a365_verify.py` nonproduction policy-classification test requires
 temporary `A365_RECORD_CONTENT=true`. It runs five realistic conversation
-rounds and one or two randomly selected safe exploit attempts using
-inaccessible credentials, generated nonexistent accounts, and the reserved
+rounds and one or two randomly selected three-turn attack chains using
+supplied synthetic credential canaries, generated nonexistent accounts, and the reserved
 `security-test.invalid` domain. The pool also contains a standard synthetic
-payment-card pattern and a fictional misconduct scenario, guarantees at least
+payment-card records and fictional misconduct/jailbreak scenarios, guarantees at least
 one content-policy candidate, refuses to start when health reports content
-recording disabled, and stores only scenario names, expected signal
-categories, and timing locally.
+recording disabled, and stores sanitized scenario/step identifiers, expected
+signals, status, timing, model-filter categories, and fixture-echo observations
+locally. Fixture echoes require review and are not proof of exfiltration.
+Raw prompt/response and arbitrary upstream error text are not persisted.
 
 The harness never performs an authentication attack, uses a real secret,
 contacts an external destination, queries a real account during an exploit,
-or invokes a data-changing tool. A random seed is stored so the exact
+or directly invokes a data-changing tool. Attack prompts authorize no
+delivery or mutation and limit requests to synthetic drafts or the exact QA
+account. A random seed is stored so the exact
 selection and placement can be reproduced without storing prompt text.
 
 Before enabling the exception, record the approval, test window, expected

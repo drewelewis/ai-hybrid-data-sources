@@ -21,6 +21,12 @@
         &amp;&amp; string.Equals(context.Api?.Id ?? string.Empty, &quot;__DEBUG_TRACING_API_ID__&quot;, StringComparison.OrdinalIgnoreCase)
         &amp;&amp; DateTime.UtcNow &lt; DateTime.Parse(&quot;__DEBUG_TRACING_EXPIRY_UTC__&quot;);
     }" />
+    <set-variable name="llmmgmt-verification-id" value="@{
+      Guid verificationId;
+      return Guid.TryParse(context.Request.Headers.GetValueOrDefault(&quot;x-a365-verification-id&quot;, string.Empty), out verificationId)
+        ? verificationId.ToString(&quot;D&quot;)
+        : string.Empty;
+    }" />
     <set-variable name="llmmgmt-backend-attempt" value="@((int)0)" />
     <cache-lookup-value key="llmmgmt-mapping" default-value="" variable-name="llmmgmt-mapping" caching-type="internal" />
     <choose>
@@ -502,11 +508,177 @@
           <metadata name="skuTpmRemaining" value="@(context.Variables.ContainsKey(&quot;x-llmmgmt-sku-ratelimit-remaining&quot;) ? Convert.ToString(context.Variables[&quot;x-llmmgmt-sku-ratelimit-remaining&quot;]) : string.Empty)" />
           <metadata name="skuTokensConsumed" value="@(context.Variables.ContainsKey(&quot;consumedSkutokens&quot;) ? Convert.ToString(context.Variables[&quot;consumedSkutokens&quot;]) : string.Empty)" />
         </trace>
+        <set-variable name="llmmgmt-model-safety" value="@{
+          var audit = new JObject {
+            [&quot;source&quot;] = &quot;upstream_model&quot;,
+            [&quot;inspectionState&quot;] = &quot;not_inspected&quot;,
+            [&quot;promptBlockReported&quot;] = false,
+            [&quot;completionFilterReported&quot;] = false,
+            [&quot;annotationErrors&quot;] = 0,
+            [&quot;truncated&quot;] = false,
+            [&quot;results&quot;] = new JArray()
+          };
+          var contentType = context.Response.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;).Split(';')[0].Trim().ToLowerInvariant();
+          if (contentType == &quot;text/event-stream&quot;) {
+            audit[&quot;inspectionState&quot;] = &quot;stream_not_inspected&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          if (contentType != &quot;application/json&quot; &amp;&amp; !contentType.EndsWith(&quot;+json&quot;)) {
+            audit[&quot;inspectionState&quot;] = &quot;non_json_not_inspected&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          var encoding = context.Response.Headers.GetValueOrDefault(&quot;Content-Encoding&quot;, &quot;&quot;);
+          if (!string.IsNullOrEmpty(encoding) &amp;&amp; !string.Equals(encoding, &quot;identity&quot;, StringComparison.OrdinalIgnoreCase)) {
+            audit[&quot;inspectionState&quot;] = &quot;encoded_body_not_inspected&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          long declaredLength;
+          if (long.TryParse(context.Response.Headers.GetValueOrDefault(&quot;Content-Length&quot;, &quot;&quot;), out declaredLength) &amp;&amp; declaredLength &gt; 262144) {
+            audit[&quot;inspectionState&quot;] = &quot;oversize_not_inspected&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          var body = context.Response.Body == null ? string.Empty : context.Response.Body.As&lt;string&gt;(preserveContent: true);
+          if (body.Length &gt; 131072) {
+            audit[&quot;inspectionState&quot;] = &quot;oversize_not_inspected&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          JToken parsed;
+          try {
+            parsed = JToken.Parse(body);
+          }
+          /* APIM exposes Exception, not JsonReaderException; only parser-library failures are handled. */
+          catch (Exception parseError) {
+            if (parseError.Source != &quot;Newtonsoft.Json&quot;) { throw; }
+            audit[&quot;inspectionState&quot;] = &quot;invalid_json&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          var document = parsed as JObject;
+          if (document == null) {
+            audit[&quot;inspectionState&quot;] = &quot;unsupported_json_shape&quot;;
+            return JsonConvert.SerializeObject(audit);
+          }
+          var error = (document[&quot;error&quot;] as JObject) ?? document;
+          var inner = (error?[&quot;innererror&quot;] as JObject) ?? (error?[&quot;inner_error&quot;] as JObject);
+          var errorCode = error?[&quot;code&quot;];
+          var innerCode = inner?[&quot;code&quot;];
+          var code = errorCode?.Type == JTokenType.String ? (string)errorCode : string.Empty;
+          audit[&quot;promptBlockReported&quot;] = context.Response.StatusCode == 400
+            &amp;&amp; (code == &quot;content_filter&quot; || code == &quot;content_policy_violation&quot; || code == &quot;ResponsibleAIPolicyViolation&quot;
+              || (innerCode?.Type == JTokenType.String &amp;&amp; (string)innerCode == &quot;ResponsibleAIPolicyViolation&quot;));
+          var errorFilters = inner?[&quot;content_filter_result&quot;] ?? inner?[&quot;content_filter_results&quot;]
+            ?? error?[&quot;content_filter_result&quot;] ?? error?[&quot;content_filter_results&quot;];
+          var prompts = document[&quot;prompt_filter_results&quot;] ?? document[&quot;prompt_annotations&quot;];
+          var groups = new [] {
+            prompts as JArray, document[&quot;choices&quot;] as JArray,
+            errorFilters == null ? null : new JArray(new JObject { [&quot;content_filter_results&quot;] = errorFilters })
+          };
+          var results = (JArray)audit[&quot;results&quot;];
+          var errors = 0;
+          var truncated = false;
+          if (prompts != null &amp;&amp; !(prompts is JArray)) { errors++; }
+          if (document[&quot;choices&quot;] != null &amp;&amp; !(document[&quot;choices&quot;] is JArray)) { errors++; }
+          for (var groupIndex = 0; groupIndex &lt; groups.Length; groupIndex++) {
+            var group = groups[groupIndex];
+            if (group == null) { continue; }
+            if (group.Count &gt; 32) { truncated = true; }
+            for (var itemIndex = 0; itemIndex &lt; Math.Min(group.Count, 32); itemIndex++) {
+              var item = group[itemIndex] as JObject;
+              if (item == null) { errors++; continue; }
+              var stage = groupIndex == 1 ? &quot;completion&quot; : &quot;prompt&quot;;
+              var finish = item[&quot;finish_reason&quot;];
+              if (groupIndex == 1 &amp;&amp; finish?.Type == JTokenType.String &amp;&amp; (string)finish == &quot;content_filter&quot;) {
+                audit[&quot;completionFilterReported&quot;] = true;
+              }
+              var filters = item[&quot;content_filter_results&quot;] as JObject;
+              if (item[&quot;content_filter_results&quot;] != null &amp;&amp; filters == null) { errors++; }
+              if (filters == null) { continue; }
+              if (filters[&quot;error&quot;] != null) { errors++; }
+              var indexToken = item[groupIndex == 0 ? &quot;prompt_index&quot; : &quot;index&quot;];
+              var index = -1;
+              var validIndex = indexToken?.Type == JTokenType.Integer
+                &amp;&amp; int.TryParse(indexToken.ToString(), out index) &amp;&amp; index &gt;= 0 &amp;&amp; index &lt;= 999;
+              if (!validIndex) { index = -1; }
+              foreach (var category in new [] { &quot;hate&quot;, &quot;sexual&quot;, &quot;violence&quot;, &quot;self_harm&quot;, &quot;jailbreak&quot;, &quot;indirect_attack&quot;, &quot;protected_material_text&quot;, &quot;protected_material_code&quot;, &quot;pii&quot;, &quot;groundedness&quot;, &quot;task_adherence&quot; }) {
+                var signal = filters[category] as JObject;
+                if (filters[category] != null &amp;&amp; signal == null) { errors++; }
+                if (signal == null) { continue; }
+                var severityToken = signal[&quot;severity&quot;];
+                var severity = severityToken?.Type == JTokenType.String ? (string)severityToken : string.Empty;
+                var knownSeverity = severity == &quot;safe&quot; || severity == &quot;low&quot; || severity == &quot;medium&quot; || severity == &quot;high&quot;;
+                var filtered = signal[&quot;filtered&quot;];
+                var detected = signal[&quot;detected&quot;];
+                var redacted = signal[&quot;redacted&quot;];
+                if ((severityToken != null &amp;&amp; severityToken.Type != JTokenType.Null &amp;&amp; !knownSeverity)
+                  || (filtered != null &amp;&amp; filtered.Type != JTokenType.Null &amp;&amp; filtered.Type != JTokenType.Boolean)
+                  || (detected != null &amp;&amp; detected.Type != JTokenType.Null &amp;&amp; detected.Type != JTokenType.Boolean)
+                  || (redacted != null &amp;&amp; redacted.Type != JTokenType.Null &amp;&amp; redacted.Type != JTokenType.Boolean)) { errors++; }
+                if (!knownSeverity &amp;&amp; filtered?.Type != JTokenType.Boolean
+                  &amp;&amp; detected?.Type != JTokenType.Boolean &amp;&amp; redacted?.Type != JTokenType.Boolean) { continue; }
+                if (results.Count &gt;= 24) { truncated = true; continue; }
+                results.Add(new JObject {
+                  [&quot;stage&quot;] = stage, [&quot;index&quot;] = index, [&quot;category&quot;] = category,
+                  [&quot;severity&quot;] = knownSeverity ? severity : null,
+                  [&quot;filtered&quot;] = filtered?.Type == JTokenType.Boolean ? filtered : JValue.CreateNull(),
+                  [&quot;detected&quot;] = detected?.Type == JTokenType.Boolean ? detected : JValue.CreateNull(),
+                  [&quot;redacted&quot;] = redacted?.Type == JTokenType.Boolean ? redacted : JValue.CreateNull()
+                });
+              }
+            }
+          }
+          audit[&quot;annotationErrors&quot;] = errors;
+          audit[&quot;truncated&quot;] = truncated;
+          var observed = results.Count &gt; 0 || (bool)audit[&quot;promptBlockReported&quot;] || (bool)audit[&quot;completionFilterReported&quot;];
+          audit[&quot;inspectionState&quot;] = observed
+            ? (errors &gt; 0 || truncated ? &quot;observed_partial&quot; : &quot;observed&quot;)
+            : (errors &gt; 0 ? &quot;annotation_error&quot; : &quot;no_annotations&quot;);
+          return JsonConvert.SerializeObject(audit);
+        }" />
+        <trace source="llmmgmt-safety-audit" severity="information">
+          <message>safety.outbound</message>
+          <metadata name="event" value="safety.outbound" />
+          <metadata name="verificationId" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-verification-id&quot;, string.Empty))" />
+          <metadata name="correlationState" value="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-verification-id&quot;, string.Empty)) ? &quot;absent_or_invalid&quot; : &quot;provided_not_identity&quot;)" />
+          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+          <metadata name="statusCode" value="@(context.Response.StatusCode.ToString())" />
+          <metadata name="classification" value="@(JObject.Parse(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model-safety&quot;))[&quot;inspectionState&quot;].ToString())" />
+          <metadata name="evaluationSource" value="upstream_model" />
+          <metadata name="modelSafety" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model-safety&quot;))" />
+        </trace>
+      </when>
+    </choose>
+    <choose>
+      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false) &amp;&amp; (JObject.Parse(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model-safety&quot;))[&quot;inspectionState&quot;].ToString() == &quot;invalid_json&quot; || (int)JObject.Parse(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model-safety&quot;))[&quot;annotationErrors&quot;] &gt; 0))">
+        <trace source="llmmgmt-safety-audit" severity="error">
+          <message>safety.inspection-error</message>
+          <metadata name="event" value="safety.inspection-error" />
+          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+          <metadata name="verificationId" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-verification-id&quot;, string.Empty))" />
+          <metadata name="classification" value="inspection_error" />
+        </trace>
       </when>
     </choose>
   </outbound>
   <on-error>
     <base />
+    <choose>
+      <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;llmmgmt-debug-tracing-enabled&quot;, false))">
+        <trace source="llmmgmt-safety-audit" severity="error">
+          <message>safety.on-error</message>
+          <metadata name="event" value="safety.on-error" />
+          <metadata name="verificationId" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-verification-id&quot;, string.Empty))" />
+          <metadata name="correlationState" value="@(string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-verification-id&quot;, string.Empty)) ? &quot;absent_or_invalid&quot; : &quot;provided_not_identity&quot;)" />
+          <metadata name="requestId" value="@(context.RequestId.ToString())" />
+          <metadata name="apiId" value="@(context.Api?.Id ?? string.Empty)" />
+          <metadata name="model" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;llmmgmt-model&quot;, string.Empty))" />
+          <metadata name="statusCode" value="@(context.Response == null ? string.Empty : context.Response.StatusCode.ToString())" />
+          <metadata name="policyErrorSource" value="@(context.LastError.Source)" />
+          <metadata name="policyErrorReason" value="@(context.LastError.Reason)" />
+          <metadata name="classification" value="not_inspected" />
+        </trace>
+      </when>
+    </choose>
     <set-header name="x-llmmgmt-request-id" exists-action="override">
       <value>@(context.RequestId.ToString())</value>
     </set-header>

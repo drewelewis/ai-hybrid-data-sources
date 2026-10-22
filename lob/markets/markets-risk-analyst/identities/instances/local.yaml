@@ -1,0 +1,13 @@
+instanceKey: local
+environment: local
+displayName: Markets Risk Analyst Local
+blueprintRef: markets-risk-analyst-nonprod
+ownerRefs:
+  - principalType: servicePrincipal
+    principalRef: markets-agent-identity-nonprod-provisioner
+deployment:
+  region: null
+  legalEntity: contoso-bank
+lifecycle:
+  state: proposed
+  provisioningEnabled: false

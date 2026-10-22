@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.contoso.bank/agent-id/v1alpha1/agent-identity-blueprint.schema.json",
+  "title": "Contoso Bank Agent Identity Blueprint desired state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "agentid.contoso.bank/v1alpha1"
+    },
+    "kind": {
+      "const": "AgentIdentityBlueprint"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "labels"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^markets-risk-analyst-(?:nonprod|prd)$"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lob",
+            "applicationFamily",
+            "trustBoundary"
+          ],
+          "properties": {
+            "lob": {
+              "const": "markets"
+            },
+            "applicationFamily": {
+              "const": "markets-risk-analyst"
+            },
+            "trustBoundary": {
+              "enum": [
+                "nonproduction",
+                "production"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "displayName",
+        "description",
+        "environments",
+        "sponsorRefs",
+        "ownerRefs",
+        "tags",
+        "credentialPolicy",
+        "permissions",
+        "managerApplications",
+        "governance",
+        "lifecycle"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/environment"
+          }
+        },
+        "sponsorRefs": {
+          "$ref": "#/$defs/principalRefs"
+        },
+        "ownerRefs": {
+          "$ref": "#/$defs/principalRefs"
+        },
+        "tags": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "credentialPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowedTypes",
+            "clientSecret",
+            "privateMaterialLocation"
+          ],
+          "properties": {
+            "allowedTypes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "federatedIdentityCredential",
+                  "certificate",
+                  "clientSecret"
+                ]
+              }
+            },
+            "clientSecret": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "allowed",
+                "allowedEnvironments"
+              ],
+              "properties": {
+                "allowed": {
+                  "type": "boolean"
+                },
+                "allowedEnvironments": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "$ref": "#/$defs/environment"
+                  }
+                },
+                "maximumLifetimeDays": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "allowed": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "allowed"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "maximumLifetimeDays"
+                    ],
+                    "properties": {
+                      "allowedEnvironments": {
+                        "minItems": 1
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "allowedEnvironments": {
+                        "maxItems": 0
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "privateMaterialLocation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maximumRotationDays": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "inheritanceMode",
+            "requiredResourceAccess",
+            "reviewRequired"
+          ],
+          "properties": {
+            "inheritanceMode": {
+              "const": "explicit"
+            },
+            "requiredResourceAccess": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "reviewRequired": {
+              "const": true
+            }
+          }
+        },
+        "managerApplications": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "platformManaged"
+            }
+          }
+        },
+        "governance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "killSwitchScope",
+            "segregationOfDutiesRequired"
+          ],
+          "properties": {
+            "killSwitchScope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "segregationOfDutiesRequired": {
+              "const": true
+            },
+            "independentProductionApprovalRequired": {
+              "type": "boolean"
+            }
+          }
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "environment": {
+      "enum": [
+        "local",
+        "dev",
+        "tst",
+        "prd"
+      ]
+    },
+    "principalRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principalType",
+          "principalRef"
+        ],
+        "properties": {
+          "principalType": {
+            "enum": [
+              "group",
+              "servicePrincipal",
+              "user"
+            ]
+          },
+          "principalRef": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "provisioningEnabled"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "proposed",
+            "approved",
+            "provisioned",
+            "retired"
+          ]
+        },
+        "provisioningEnabled": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provisioningEnabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "provisioningEnabled"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "approved",
+                  "provisioned"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "retired"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provisioningEnabled": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

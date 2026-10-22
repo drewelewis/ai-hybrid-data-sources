@@ -36,6 +36,70 @@ Use stable identifiers rather than display names alone:
 The application IDs above are client IDs. They are not Microsoft Entra object
 IDs, hunting event IDs, trace IDs, or Defender application catalog IDs.
 
+## Saved investigation workbook
+
+Open [A365 - Agent Security Investigation](https://security.microsoft.com/workbook/52d9b661-aa2a-4900-b984-4e80342fbb85?tid=00648bab-6c91-4292-9a2a-2297df511222),
+or select it under **Workbooks > My workbooks > View saved workbook**.
+This is a tenant-level Defender ISOC workbook using **Advanced hunting**,
+not an Azure Monitor resource or a new ingestion connector.
+
+- **TimeRange:** defaults to the last 24 hours; choose a custom window when
+  investigating an older test within available retention.
+- **AgentId:** defaults to the Portfolio Manager Agent Identity application ID.
+- **UserUpn:** optional person filter. Security findings match the alert's User
+  evidence; supporting activity resolves the initiating human from invocation
+  records. Leave it unset when checking unattributed invocations.
+- **RunMarker:** appears under **Supporting telemetry** and defaults to unset
+  so a single test does not hide other recent activity. Enter a harness
+  marker to filter activity using the fixed harness's five round-session
+  hashes.
+
+The dashboard starts with three aligned, compact summaries: findings by
+severity and detected behavior categories as doughnut charts, followed by
+affected-person and affected-agent counts. Five native tabs change the
+investigation view rather than displaying every query in one long page:
+
+1. **Risky behavior:** severity-ranked, searchable findings with the person
+   and detection time in UTC. Select a row to reveal its evidence, linked
+   entities, and **Open selected alert in Defender** link below. The details
+   include human object IDs, agent ID, detection source, and MITRE techniques;
+   they remain constrained by the current time/agent/person filters.
+2. **People:** people linked to findings, detection counts, behavior, and
+   severity.
+3. **Agents:** agent-linked findings, High/Critical counts, and affected
+   people.
+4. **Supporting telemetry:** activity volume, invoking humans, attribution
+   coverage, correlated events, and test-client sign-ins.
+5. **Control checks:** explicit evidence boundaries and links for separate
+   Purview and model-safety investigation. Unestablished outcomes are not
+   presented as successful controls.
+
+The saved default is **Risky behavior**, with no finding selected.
+
+Findings are deduplicated by AlertId and use actual AlertInfo/AlertEvidence
+data. They are not labels inferred from test prompts, proof of compromise,
+or a list of confirmed active alerts. Open the selected alert for status,
+evidence, and the exact conversation. Defender can require a viewer to
+**Allow** the parameterized link to `https://security.microsoft.com` before
+enabling it. That consent prompt is intentionally retained. Unalerted
+classifier-level behavior is not exposed by these queries, and zero findings
+does not mean safe.
+
+Missing identity values in **Supporting telemetry** are coverage gaps, not
+automatically suspicious behavior. Inference metadata is read from nested
+CopilotEventData where required for correlation.
+
+**RunMarker does not filter security findings or sign-ins**; those use their
+stated agent/client, time, and optional user scope. Confirm the alert's
+conversation before linking it to a run. Activity totals count telemetry
+records, not chat turns. No prompt or response text is displayed, and
+auto-refresh is left off.
+
+The workbook includes Purview investigation links. It does not infer DLP
+enforcement or model-filter intervention from successful requests or alerts.
+See Microsoft's [native Defender workbook guidance](https://learn.microsoft.com/en-us/defender-xdr/siem-defender-workbooks)
+for workbook permissions and editing.
+
 ## Major Defender areas at a glance
 
 | Area | What to look for | What it proves |
@@ -187,12 +251,18 @@ telemetry and should not be used to manufacture evidence that ingestion works.
 Keep detection logic metadata-focused where possible. Do not place prompt text
 or sensitive tool payloads in alert titles or descriptions.
 
-The verification harness's randomized exploit attempts are useful test
+The verification harness's one or two randomized three-turn attack chains are useful test
 traffic, but `CloudAppEvents` may expose only invocation, inference, tool, and
 identity metadata. A prompt that reads like an attack does not automatically
 create a Defender alert. Correlate the generated UTC-bounded query first, then
 decide whether a supported built-in protection or separately approved custom
 detection should classify that activity.
+
+The local report separates nonempty responses, structured upstream
+model-filter blocks, and synthetic-fixture echoes requiring review.
+Neither a filter block nor an echoed fixture proves a Defender alert.
+Use the attack name/step and hashed session, trace, and parent identifiers
+to correlate the bounded escalation with the attributed root invocation.
 
 ### 3.1 Automation boundary
 

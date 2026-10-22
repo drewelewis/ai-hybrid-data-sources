@@ -1,0 +1,52 @@
+apiVersion: agentid.contoso.bank/v1alpha1
+kind: AgentIdentityBlueprint
+metadata:
+  name: markets-risk-analyst-nonprod
+  labels:
+    lob: markets
+    applicationFamily: markets-risk-analyst
+    trustBoundary: nonproduction
+spec:
+  displayName: Markets Risk Analyst Nonproduction
+  description: >-
+    Nonproduction identity and permission boundary for the on-premises Markets
+    Risk Analyst.
+  environments:
+    - local
+    - dev
+    - tst
+  sponsorRefs:
+    - principalType: group
+      principalRef: markets-risk-analyst-business-sponsors
+  ownerRefs:
+    - principalType: servicePrincipal
+      principalRef: markets-agent-identity-nonprod-provisioner
+  tags:
+    - contoso:lob=markets
+    - contoso:application-family=markets-risk-analyst
+    - contoso:trust-boundary=nonproduction
+    - contoso:hosting=on-premises
+  credentialPolicy:
+    allowedTypes:
+      - federatedIdentityCredential
+      - certificate
+      - clientSecret
+    clientSecret:
+      allowed: true
+      allowedEnvironments:
+        - local
+        - dev
+      maximumLifetimeDays: 30
+    privateMaterialLocation: approved-secret-store
+  permissions:
+    inheritanceMode: explicit
+    requiredResourceAccess: []
+    reviewRequired: true
+  managerApplications:
+    mode: platformManaged
+  governance:
+    killSwitchScope: markets-risk-analyst-nonproduction
+    segregationOfDutiesRequired: true
+  lifecycle:
+    state: proposed
+    provisioningEnabled: false

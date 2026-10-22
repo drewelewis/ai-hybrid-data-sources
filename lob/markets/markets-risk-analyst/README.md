@@ -37,6 +37,33 @@ The workstation-local `.env` starts with `ENVIRONMENT_NAME=local`; its APIM
 token scope and subscription key remain blank until approved values are
 provided.
 
+## Agent ID desired state
+
+The [Agent ID desired-state folder](./identities/README.md) contains:
+
+- Separate nonproduction and production blueprint specifications.
+- One common Agent Identity base with independently promoted, schema-validated
+  instance overlays for `local`, `dev`, `tst`, and `prd`.
+- Support for additional regional or legal-entity production instances and
+  controlled sponsor overrides.
+- Closed blueprint and identity schemas, a deterministic renderer, blueprint
+  readiness enforcement, and focused policy tests.
+- A GitHub OIDC plan/apply workflow for create-or-verify provisioning of the
+  core blueprint, BlueprintPrincipal, and selected Agent Identity.
+- Sponsor, owner, tag, custom-security-attribute, APIM attribution, Agent 365
+  registration, credential-policy, and lifecycle intent.
+
+These internal artifacts are not raw Graph payloads and do not indicate that
+tenant objects exist. Every included identity and blueprint is `proposed` with
+provisioning disabled, unresolved governance references, no permission
+grants, and no credential material. Generated plans are ignored and must not
+be committed.
+
+The checked-in workflow is also inactive until administrators configure its
+protected GitHub environments, federated planner and provisioner
+applications, Graph permissions, consent, and symbolic principal mappings.
+No workflow definition or desired-state artifact proves tenant deployment.
+
 ## Run
 
 ```powershell

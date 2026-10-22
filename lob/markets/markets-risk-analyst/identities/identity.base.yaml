@@ -1,0 +1,24 @@
+apiVersion: agentid.contoso.bank/v1alpha1
+kind: AgentIdentity
+metadata:
+  labels:
+    lob: markets
+    applicationFamily: markets-risk-analyst
+spec:
+  deployment:
+    hosting: onPremises
+  sponsorRefs:
+    - principalType: group
+      principalRef: markets-risk-analyst-business-sponsors
+  tags:
+    - contoso:lob=markets
+    - contoso:application-family=markets-risk-analyst
+  customSecurityAttributes:
+    Department: Markets
+    DataSensitivity: Confidential
+    RiskTier: PendingReview
+  permissions:
+    directAssignments: []
+  agent365Registration:
+    desired: true
+    ownerRef: markets-risk-analyst-registration-owners

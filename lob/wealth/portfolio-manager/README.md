@@ -288,6 +288,288 @@ blueprint client secret in the git-ignored `.env` as
 uses an app-only two-step Agent ID exchange and does not reuse the interactive
 APIM user token. Prompt and response recording remains disabled.
 
+### Optional pilot: calendar scheduling and portfolio reviews using Microsoft Graph
+
+This opt-in scenario combines the signed-in user's calendar with the existing
+ledger tools. The existing blueprint remains the credential boundary; Graph
+access runs as its child agent identity **on behalf of the user**, not as the
+provisioning app or the model endpoint identity.
+
+With the feature enabled, the agent can read the **whole primary calendar**,
+not just review-marked meetings. The portfolio-review tool remains separate
+because its exact subject markers link meetings to ledger accounts.
+
+The layers follow the trading-platform operations/tools pattern:
+[`operations/graph_operations.py`](operations/graph_operations.py) owns Graph
+transport, delegated token exchange, calendar rules, proposal state and confirmed
+writes, returning structured data. [`tools/graph_tool.py`](tools/graph_tool.py)
+only exposes typed model tools and formats those results as JSON. The API creates
+one operations instance per validated caller request and injects it into the tool
+adapter; it never shares user assertions through a global operations singleton.
+Confirmation endpoints call operations directly, not model tools.
+
+The implementation is disabled by default. Repository tests use mocked Microsoft
+responses; they do not prove tenant consent, mailbox access, or live token
+exchange. Complete the following tenant setup with an authorized administrator
+before enabling it:
+
+1. Verify the blueprint and child agent identity IDs against the tenant. The
+   local generated configuration is a historical provisioning artifact, not a
+   live permission inventory. Review existing inheritance and effective grants.
+2. Verify the existing delegated API scope named `access_agent_as_user` on the blueprint,
+   with identifier URI `api://<blueprint-client-id>`. Configure v2 access tokens.
+   Authorize the existing public CLI client (`AZURE_CLIENT_ID`) to request that
+   scope, with the required consent and public-client device-code configuration.
+   Preserve its existing APIM API permissions.
+3. Grant the child agent identity only the delegated Microsoft Graph permission
+   `Calendars.ReadBasic` for read-only preparation. Use the supported Agent ID consent
+   workflow; do not grant broad Graph application permissions to the blueprint
+   or reuse permissions granted to the provisioning application.
+4. Confirm the demo user has an accessible Exchange calendar. No agent mailbox,
+   agent user account, email permission, or calendar write permission is needed
+   for read-only preparation. The optional confirmed save workflow below
+   requires separately approved delegated calendar-write permission.
+
+Protocol and permission references:
+[interactive agent authentication](https://learn.microsoft.com/en-us/entra/agent-id/interactive-agent-authentication-authorization-flow),
+[Agent ID OBO exchange](https://learn.microsoft.com/en-us/entra/agent-id/agent-on-behalf-of-oauth-flow),
+and [Graph calendarView](https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview?view=graph-rest-1.0).
+Tenant setup is an administrative change requiring separate approval; restarting
+the application does not perform provisioning or consent.
+
+After approval, configure the API's ignored `.env` using the existing tenant,
+blueprint, child agent IDs, and server-side `A365_BLUEPRINT_CLIENT_SECRET`.
+The pilot uses the existing local-development secret; production must instead
+use an approved managed-identity federation or certificate implementation.
+Never copy the protected secret from the generated configuration into source
+code or treat its encrypted value as a plaintext credential.
+
+```dotenv
+ENABLE_GRAPH_CALENDAR=true
+GRAPH_CALENDAR_UTC_OFFSET=-04:00
+A365_RECORD_CONTENT=false
+```
+
+Set the same feature flag, calendar offset, `A365_BLUEPRINT_CLIENT_ID`,
+`AZURE_TENANT_ID`, and public-client `AZURE_CLIENT_ID` in the host environment
+used by `chat.py`. The CLI never needs the blueprint secret. Keep model
+authentication configured as before. Rebuild/restart the API through the usual
+local workflow, then run `python chat.py`.
+
+The CLI acquires **two different tokens** when using device-code model auth:
+
+| Header | Audience and purpose |
+|---|---|
+| `Authorization: Bearer ...` | Existing APIM/model resource; used only for model calls |
+| `X-Agent-Authorization: Bearer ...` | Blueprint API with `access_agent_as_user`; validated by this API and exchanged for delegated Graph access |
+
+With server-side model credentials, only the second user token is needed.
+Custom clients and gateways must forward `X-Agent-Authorization`; do not send a
+Graph-audience token or reuse the model token in that header. When both tokens
+are used, their validated tenant and user IDs must match. Each calendar-enabled
+chat and session-clear request requires the blueprint token, even with
+observability disabled. Conversation threads are isolated by tenant, caller
+object ID, and session ID. Tokens remain request-local and are not put into
+conversation history or tool arguments.
+
+**Stage the demo in Outlook using synthetic data:**
+
+1. Pick an existing **synthetic** account from the local ledger. Create an event
+   on the demo user's primary calendar with the exact subject
+   `Portfolio Review - DEMO-<account_id>`. For ledger account `A100`, use
+   `Portfolio Review - DEMO-A100`; for a UUID account, include the full UUID after
+   `DEMO-`. The prefix is removed to obtain the exact ledger account ID.
+2. Schedule it on the intended demo date. Cancelled events are ignored;
+   unmarked meetings are not returned to the model. Read-only preparation does
+   not request bodies, attendees, locations, or attachments. Hyphen, en dash, and em dash
+   separators are supported.
+3. Ask: **"Prepare me for my portfolio reviews today. Show the relevant holdings
+   and highlight positions worth discussing."** Alternatively specify a date,
+   such as **"Prepare my portfolio reviews for 2026-10-22."**
+4. Verify the returned meeting time, exact account mapping, holdings,
+   concentration observations, and price timestamps against Outlook and the
+   ledger. Observed prices are not live market quotes. No matched meetings,
+   unknown accounts, or service failures must be reported explicitly.
+
+For the **review-only tool**, `GRAPH_CALENDAR_UTC_OFFSET` defines the day boundary; it is a fixed offset, not a
+daylight-saving-aware time zone. The default is UTC. Meeting times are returned
+in UTC. The tool retrieves one day, follows Graph pagination within the same
+calendar endpoint, and fails explicitly above the pilot limit of 500 events
+rather than producing an incomplete briefing.
+
+#### Read the full schedule and find openings
+
+`get_calendar_schedule` returns every noncancelled event in a requested
+inclusive date range of up to 31 days, including ordinary meetings, all-day
+events, and expanded recurring occurrences. It returns subjects and times,
+not bodies or attendees. Private event subjects are redacted, but their times
+remain visible and block scheduling. It shares the existing pagination and
+500-event completeness limit; failures never become an empty/free calendar.
+
+`find_available_slots` uses the agreed pilot scheduling rules:
+
+- **Monday-Friday, 09:00-17:00 America/New_York**, with daylight-saving-aware
+  date boundaries. The declared `tzdata` dependency makes IANA timezone data
+  available on Windows as well as in containers.
+- **60 minutes by default**, or a requested duration of 1-480 minutes.
+- **Every noncancelled event blocks**, including events marked Free. This is
+  intentional for the existing synthetic batch; its Free status does not make
+  its meeting times available to this scheduler.
+- Touching endpoints do not overlap; cancelled events do not block. Past
+  times are never suggested. All-day/multi-day events and overlapping
+  occurrences are included in the conflict check.
+- At most 50 earliest non-overlapping suggestions are returned, with an
+  explicit `more_slots_available` flag. These are suggested start times, not
+  an exhaustive enumeration of every possible start minute.
+
+These tools use Eastern time independently of the older review tool's fixed
+offset. Results include UTC and offset-aware Eastern timestamps, including
+across DST transitions. Relative dates use the current Eastern date; follow-up
+schedule requests should preserve the date being discussed or ask to clarify.
+
+Examples:
+
+> Show my full schedule for tomorrow.
+>
+> Find 60-minute openings next week.
+
+Only the signed-in organizer's **primary calendar** is checked. Shared or
+secondary calendars and attendees' free/busy are not aggregated. A proposed
+opening is not a reservation or a promise that customers are available.
+
+Calendar mode removes `insert_trade_event` from the chat agent's tools. It does
+**not** disable existing REST write endpoints or add account-level authorization
+to the shared ledger. Calendar markers are not account entitlements. Use only
+synthetic accounts in this pilot; production requires separate data-access
+controls. Keep content telemetry disabled to avoid exporting calendar-derived
+briefings and portfolio content.
+
+For live acceptance, also verify that a second user cannot retrieve or clear the
+first user's thread using the same session ID, and that missing/invalid tokens
+fail before model execution. Permission denial, throttling, and network errors
+are tool errors, never an empty-calendar success. `/health` and `/agent/status`
+advertise whether the feature is configured; neither proves live Graph access.
+Disable `ENABLE_GRAPH_CALENDAR` and restart the API/CLI to restore the original
+chat tool set. Tenant permission/scope rollback is a separate approved action.
+
+#### Optional: save the briefing into the meeting after explicit confirmation
+
+Reading a meeting does **not** write the generated briefing into its invitation.
+For a reusable save workflow, obtain separate approval to add delegated
+`Calendars.ReadWrite` to the **child agent's existing pilot-user-specific Graph
+grant**, preserving existing scopes. This grants broader calendar access than
+`Calendars.ReadBasic`; the following restrictions are application controls, not
+scope-level limits. Do not grant tenant-wide or application permissions.
+
+Enable `ENABLE_GRAPH_CALENDAR_WRITE=true` in the API's ignored environment and
+rebuild/restart it. `ENABLE_GRAPH_CALENDAR=true` must also remain enabled.
+The CLI still uses the existing blueprint scope and never needs a Graph token
+or blueprint credential. No changes to the generated provisioning configuration
+are needed. Check `/health` for `graph_calendar.briefing_write_enabled`.
+
+In `chat.py`, ask:
+
+> Prepare my portfolio review for 2026-10-23 and add the briefing to its meeting.
+
+The additional model tool, `prepare_portfolio_review_briefing`, **only prepares
+a proposal**. It finds exactly one marked review for the account/date, verifies
+that the signed-in user is its organizer and that it is a non-recurring,
+uncancelled event, and snapshots its body and version. Existing descriptions,
+including online-meeting joining information, are preserved. The existing body
+is not sent to the model; the proposal includes the new briefing, meeting times,
+organizer, and attendee addresses so the user can review its destination.
+
+The CLI displays that exact proposed addition and warns that saving may send
+an updated invitation to **all listed attendees**. Only typing the displayed
+`SAVE <proposal-id>` confirmation sends the separate authenticated request.
+Anything else cancels; an ordinary chat message saying "yes" is not approval.
+Merely preparing a briefing, or the model claiming approval, cannot save it.
+
+Custom clients must display `/chat`'s optional `calendar_update` preview, obtain
+explicit approval outside the model, then POST to `/calendar/briefing/decision`
+with `X-Agent-Authorization`:
+
+```json
+{
+  "session_id": "the-same-session",
+  "proposal_id": "the-UUID-from-calendar_update",
+  "decision": "confirm"
+}
+```
+
+Use `"cancel"` to discard it. The decision endpoint never invokes the model and
+accepts no replacement content or arbitrary event ID. Proposals are bound to
+tenant/user/session, expire after 15 minutes, and are single-use, including on
+save failure. New chat, session clear, or API restart invalidates pending
+approvals. State is in memory, like conversation threads; use a single API
+process for this pilot. A scaled deployment needs a shared approval store.
+
+Confirmation re-reads the event, rejects a changed snapshot, and PATCHes **only
+the body** with its Graph `If-Match` version. It then reads the event back to
+check the briefing, preserved description, and meeting metadata. Stale,
+throttled, uncertain, or failed updates are explicit errors, not success, and
+are never automatically retried. After an uncertain failure, inspect Outlook
+before preparing another update. These steps do not prove attendee delivery.
+Read-back compares visible HTML body text, excluding hidden styles/scripts;
+Exchange may normalize HTML formatting without changing the description.
+
+Disable `ENABLE_GRAPH_CALENDAR_WRITE` and restart the API to restore read-only
+calendar mode. Removing delegated write consent, or restoring a previously
+saved meeting body, requires a separately approved administrative action.
+Keep `A365_RECORD_CONTENT=false`; only synthetic portfolio content belongs in
+this pilot.
+
+#### Optional: create a customer invitation after explicit confirmation
+
+The same approved delegated `Calendars.ReadWrite` grant and
+`ENABLE_GRAPH_CALENDAR_WRITE=true` flag enable `prepare_customer_meeting`.
+No additional blueprint scope, mail permission, or application grant is needed.
+This tool only stages an invitation; it cannot send, create, or approve it.
+The existing model-callable briefing and creation tools both remain
+proposal-only, and ledger insertion remains unavailable.
+
+In write-enabled sessions, the agent explains that it can prepare an invitation
+which the application can create and send after explicit CLI approval. It must
+not describe this capability as draft-only or claim the invitation was already
+sent after staging a proposal. Read-only sessions must instead explain that
+calendar writes are disabled.
+
+Provide an exact customer email, subject, agenda/body and desired date or
+chosen opening. The agent must ask for missing recipients rather than guess
+from customer names, previous meetings or ledger records. The tool accepts
+1-20 distinct explicit email addresses and enforces a future weekday time
+within the working window. It checks conflicts before proposing, then derives
+the organizer from the primary calendar owner.
+
+The CLI previews **NEW meeting**, complete body, subject, UTC/Eastern time,
+organizer and every recipient. Only typing **`SEND <proposal-id>`** creates it;
+`SAVE`, "yes", ordinary chat, cancellation, or model text cannot send it.
+Briefing updates continue to use `SAVE` and their existing endpoint.
+
+Custom clients must render `/chat`'s `calendar_update` with
+`action: "create_meeting"` and obtain explicit approval outside the model.
+Then POST the same `session_id`, `proposal_id`, and `"decision": "confirm"`
+(or `"cancel"`) to **`/calendar/meeting/decision`**, authenticated with the
+blueprint `X-Agent-Authorization` token. No replacement event fields are
+accepted. Approval remains caller/session-bound, expires in 15 minutes, and
+is consumed before executing, including on failures. New chat, clear, or
+restart discards it. The briefing endpoint cannot consume a creation proposal.
+
+At confirmation, the API rechecks the entire chosen interval against all
+noncancelled primary-calendar events. It serializes its own creation requests
+per caller within this single API process. Outlook/other clients can still
+race with that check: Graph does not atomically reserve availability, and
+attendee free/busy is not checked.
+
+Creation sends the exact reviewed body and recipient list, marks the event
+Busy, and assigns the proposal UUID as Graph `transactionId` for correlation
+and duplicate protection. A successful Graph `201 Created` is followed by
+read-back verification of organizer, recipients, times, body, subject,
+transaction ID and Busy status. Failure is explicit and never automatically
+retried: creation might already have succeeded, so inspect the calendar before
+trying again. Organizer-side verification does not prove invitation delivery
+or acceptance. These controls do not authorize automatic bulk scheduling.
+
 ---
 
 ## API Endpoints
@@ -346,7 +628,13 @@ Natural-language chat with the Trading Platform Agent. Maintains full conversati
 }
 ```
 
-The agent has access to 7 tools and will call them automatically to answer the question. Conversation history is maintained in-memory per `session_id`.
+The agent has 13 tools by default. Calendar pilot mode replaces trade insertion
+with review, full-schedule, and slot-finding read tools. Optional calendar
+writes add briefing and invitation proposal tools, never model-callable
+save/send operations. `/chat` returns `calendar_update`
+only when a proposal was prepared; see the confirmation workflow above.
+Conversation history is maintained in memory; calendar mode additionally binds
+it to the validated tenant and user.
 
 ---
 
@@ -720,6 +1008,20 @@ python chat.py
 Presents a REPL that sends messages to `POST /chat` and prints responses. It
 connects to `http://127.0.0.1:8989` by default; set `CHAT_API_URL` to target a
 different running API instance.
+
+Follow-up account references such as "account 1", "the first account", or
+"that account" should reuse the exact ledger account ID from the most recent
+relevant numbered account list or the single account under discussion.
+Ambiguous references, missing lists and out-of-range positions require
+clarification before lookup; a list position is not a literal account ID.
+
+Interactive terminals use the existing `colorama` dependency: cyan for prompts
+and information, green for agent replies and success, yellow for sign-in and
+calendar confirmation warnings, and red for errors. Approval commands remain
+exactly `SAVE <proposal-id>` and `SEND <proposal-id>`. Colors reset after each
+message and are disabled for redirected output, `TERM=dumb`, or when `NO_COLOR`
+is set (including an empty value). On PowerShell, use `$env:NO_COLOR = '1'`
+to disable colors.
 
 The React and Python clients share the APIM token-limit counter when they use
 the same APIM subscription and model. If APIM returns HTTP 429, the CLI displays

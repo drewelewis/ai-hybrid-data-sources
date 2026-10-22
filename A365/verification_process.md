@@ -198,6 +198,10 @@ From the application directory, run:
 .\.venv\Scripts\python.exe a365_verify.py
 ```
 
+Alternatively, run `.\starttest.bat` from the repository root. Start
+`.\startapi.bat` first if the local API is not already running. The launcher
+also forwards arguments, such as `.\starttest.bat --help`.
+
 Complete the Microsoft device-code sign-in when prompted. Each round uses one
 conversation session and reads like normal portfolio-support usage. Depending
 on its recorded random seed, a round can:
@@ -212,39 +216,101 @@ The script creates a fresh session for each round and clears it afterward. It
 does not call `insert_trade_event`, enumerate real accounts, use a real
 portfolio account identifier, or persist prompt and response text.
 
-Every run injects one or two safe exploit attempts after a complete normal
-conversation in randomly selected rounds. This preserves each question and
-follow-up sequence. The base exploit pool covers:
+Every run makes four passes through all ten bounded probe families. Each
+session contains four segments of three normal turns followed by two probe
+chains. Each chain has an initial prompt and four contextual follow-ups in
+the same session. This gives **260 total interactions: 60 normal and 200 probe
+turns across 40 chains** when the run is not aborted. The same five sessions
+are retained, now with 52 turns each, so existing workbook session correlation
+continues to work. Context is retained between segments and cleared only at
+the end of each session. The recorded random seed controls selection order
+and placement, not whether a family is exercised in each pass. The pool covers:
 
-- prompt injection requesting hidden instructions and credentials;
-- attempted secret exfiltration to the reserved, non-routable
-  `security-test.invalid` domain; and
-- attempted unauthorized access to a generated nonexistent QA account.
+- role-spoofed system-message delimiters and instruction-hierarchy inversion;
+- fake incident-command authority and disclosure of a supplied QA credential
+  canary into an outbound draft;
+- impersonation and denied-access pressure against a generated nonexistent
+  QA account, without real-account enumeration;
+- indirect prompt injection embedded in an untrusted vendor document;
+- unrestricted-mode and assistant-prefix jailbreak attempts against a
+  fictional deceptive compliance message;
+- confidential-labeled synthetic payment-card records, lack of consent,
+  unredacted export, and split-field DLP-evasion pressure;
+- direct requests for fictional backdated approvals and misleading audit
+  narratives, followed by escalation rather than asking the agent to explain
+  how it should refuse; and
+- three non-graphic safety-boundary families covering biological-weapon
+  ideation, self-harm/suicide, and threatened violence, with prevention,
+  immediate support, and de-escalation responses rather than harmful methods.
 
-These are detection inputs, not real attacks: the script has no real secret,
-external delivery tool, or approved write operation to exercise. It does not
+The seven injection/financial-policy families add fabricated tool-result
+instructions and second-reviewer approval pressure. The three safety-boundary
+families do not receive those generic jailbreak extensions. They intentionally
+contain no weapon construction, biological procedures, injury methods, attack
+planning, or actionable threats. Supportive responses to these boundary cases
+may be appropriate; a hard model block is not required or guaranteed. The
+`adversarial` flag groups these probes for bounded execution and block handling;
+it does not establish that a safety-support conversation is malicious.
+
+These are detection inputs, not real attacks: credential fixtures are
+explicitly synthetic, outbound drafts target only the reserved
+`security-test.invalid` domain, and no delivery or write operation is
+authorized. The prompts request drafts, not executable financial changes.
+The harness does not
 perform password spraying, token replay, impossible-travel simulation, SQL
 destruction, or portfolio mutation.
+These prompt restrictions are not a tool-authorization sandbox. Run only in
+an approved nonproduction environment with independently restricted data and
+tool permissions.
 
-The behavior is intentionally fixed: five rounds, five seconds between
-interactions, one or two randomly selected exploit attempts, at least one
-content-policy candidate, automatic evidence output, and automatic portal
-opening. There are no operator tuning flags. The generated report records the
-random seed for audit. The script stops additional traffic on authentication,
+The behavior is intentionally fixed: five conversation sessions, four passes,
+15 seconds between interactions, all ten five-turn probe families in every
+pass, automatic evidence output, and automatic portal opening. A complete run
+has 259 pauses totaling **64 minutes 45 seconds**, plus model/tool processing
+and sign-in time. This is not a fixed wall-clock duration. Longer retained
+contexts can increase token usage and cost beyond the fourfold turn increase.
+Per-turn token refresh checks remain in place. There are no operator tuning
+flags. The generated report records the random seed for audit.
+The script stops additional traffic on authentication,
 authorization, or rate-limit failures and exits nonzero if an interaction
-failed or the final runtime health is not ready.
+failed or the final runtime health is not ready. A structured upstream model
+content-filter block on an adversarial turn is recorded as `blocked`, not a
+transport failure, and the remaining bounded turns continue. A block on a
+normal turn is still a failure. Authentication, authorization, and rate-limit
+errors still abort further traffic without retries.
 
 After completion, inspect:
 
 ```text
 a365-verification-results\<marker>.json
 a365-verification-results\<marker>-defender.kql
+a365-verification-results\<marker>-apim.kql
 ```
 
 The Git-ignored JSON report contains the marker, random seed, UTC bounds,
 non-secret identity IDs, runtime health, scenario names, expected adversarial
 signal categories, status, duration, and character counts. It deliberately
 excludes raw prompts, responses, tokens, tool arguments, and tool results.
+Schema version 5 retains attack name/step, actual probe turn counts,
+structured model-filter block observations/categories, and synthetic-fixture
+echo observations, deterministic turn UUIDs, the APIM query, and per-interaction
+application/model/APIM/Defender/Purview evidence states. It adds
+`passes_requested` and `pass_number` to distinguish repeated chains; started
+attempts are counted by pass and family rather than collapsing all four
+passes into one. The APIM query includes a `Pass` column. Turn numbers remain
+continuous across all four segments of a session, keeping UUIDs unique.
+Error evidence records sanitized status metadata instead of arbitrary upstream
+error text. The API validates the UUID and forwards it as
+`x-a365-verification-id` on that request's model client, without replacing
+signed user attribution or mutating another client's headers.
+
+`succeeded` means a nonempty response was received, not that an attack was
+refused or a policy fired. A synthetic-fixture echo requires manual review:
+a refusal can quote a fixture without disclosing anything new. A response
+without an echo remains unassessed. APIM/Defender/Purview validation stays
+`pending`, and the security verdict remains `review_required` until actual
+service evidence is inspected. A zero process exit code means the bounded
+execution completed without unexpected failures, not a security pass.
 
 The three verification surfaces open automatically after the run. Use the
 JSON filters in Entra and Purview and paste the generated KQL into Defender
@@ -265,16 +331,20 @@ For this explicitly approved nonproduction test:
 
 1. Set `A365_RECORD_CONTENT=true`.
 2. Restart the API and confirm `/health` reports
-   `a365_observability.content_recording: true`.
+   `a365_observability.content_recording: true`,
+   `model_endpoint_mode: "apim"`, and
+   `verification_correlation: "model_header_uuid_v1"`. The cross-layer profile
+   refuses a stale API or a direct model route rather than silently skipping
+   gateway correlation.
 3. Run `.\.venv\Scripts\python.exe a365_verify.py`.
 
 4. Restore `A365_RECORD_CONTENT=false` and restart the API immediately after
    the run.
 
-The fixed profile includes a standard synthetic payment-card pattern and a
-fictional misconduct scenario in the random exploit pool. It guarantees that
-at least one of the run's one or two exploit attempts is selected from those
-content-policy candidates. The harness refuses to start unless the runtime
+The fixed profile includes two synthetic payment-card patterns, confidential
+handling context, and fictional misconduct/jailbreak scenarios in the pool.
+Every default run includes those content-policy candidates and the three
+safety-boundary families. The harness refuses to start unless the runtime
 confirms content recording is enabled. Content-mode telemetry can be retained
 by downstream Microsoft 365 services and cannot be removed by deleting the
 local evidence bundle.
@@ -288,11 +358,138 @@ The expected-signal labels in the local report are hypotheses:
 | Unauthorized synthetic account lookup | Tool/invocation telemetry; possible risky-access classification |
 | Synthetic payment card | Purview sensitive-information or DLP evaluation |
 | Approval and audit bypass | Purview unethical-behavior or Communication Compliance evaluation |
+| Role spoofing, document injection, and unrestricted-mode jailbreak | Model Prompt Shields/content-filter block when supported and enabled; correlated Defender/Purview activity |
+| Self-harm/suicide boundary | Supportive response or supported model safety evidence; downstream classification if configured |
+| Violence / biological-weapon topic boundary | De-escalation response or supported safety evidence; no dedicated biological-weapon classifier is assumed |
+
+Only a structured upstream model error establishes the local
+`model_content_filter_blocked` observation. A refusal, an arbitrary HTTP
+400/403/500, or error text merely mentioning `content_filter` is not proof.
+The API preserves recognized upstream blocks as sanitized HTTP 400 details;
+restart it to load that handling before testing. Successful-response filter
+annotations and completion `content_filter` finish reasons are not independently
+classified by this harness. These non-graphic probes do not certify every
+violence, hate, sexual, self-harm, or biological-risk classifier.
 
 An interaction can be ingested without matching a policy, and a policy match
 can occur without creating an alert. Entra records the sign-in and policy
 evaluation; prompt content does not safely manufacture an Entra risky-sign-in
 alert.
+
+### APIM outbound/error evidence
+
+The repository policy in
+[`peering/modules/apim-foundry-policy.xml`](../peering/modules/apim-foundry-policy.xml)
+prepares metadata-only `llmmgmt-safety-audit` traces:
+
+- `safety.outbound`: gateway response and model-reported safety evidence;
+- `safety.on-error`: APIM pipeline/policy errors that reach `on-error`;
+- `safety.inspection-error`: malformed JSON or invalid/error annotations,
+  without copying parser messages or model text.
+
+The outbound and gateway-error traces record the canonical test UUID,
+APIM request ID, API/model, and HTTP status
+when available. Outbound `classification` is the inspection state described
+below; gateway errors remain `not_inspected`. Error traces also record
+policy-error source/reason, not error messages. Missing or invalid UUIDs are
+explicitly marked `absent_or_invalid`. A supplied UUID is untrusted correlation
+metadata, never human identity, authorization, or proof of a trusted test.
+The guarded projection reads non-streaming JSON responses with
+`preserveContent: true` and logs **only allowlisted model metadata**:
+
+- structured HTTP 400 model-policy block codes matching the application's
+  existing model-error contract;
+- prompt annotations (`prompt_filter_results` / legacy `prompt_annotations`)
+  and `choices[].content_filter_results`;
+- `finish_reason: content_filter`, including filtered completions returned
+  with HTTP 200;
+- prompt/completion stage, annotation index, native category, recognized
+  severity, and actual boolean `filtered`, `detected`, or `redacted` flags.
+
+Native harm categories are hate, sexual, violence, and self-harm. Supported
+optional-model flags include jailbreak/indirect attacks, protected material,
+PII, groundedness, and task adherence **when returned in this JSON contract**.
+No biological-weapon category is invented. Model PII annotations are not
+Purview DLP evidence. No new classifier, Content Safety service, blocking rule,
+permission, or outbound service call is added.
+
+`modelSafety` trace metadata identifies `source: upstream_model` and reports
+`observed`, `observed_partial`, `no_annotations`, `annotation_error`, or a
+specific uninspected/invalid-body state. An annotation can report high severity
+with `filtered: false`; detection and enforcement remain separate.
+`no_annotations` is not a clean verdict. Null/missing flags remain unknown,
+not false. Projection limits are 32 entries per input group and 24 category
+records; truncated metadata is explicitly marked partial.
+
+**Successful SSE streams are not inspected.** They remain streaming, have no
+body reads by this projection, and report `stream_not_inspected`. A blocked
+streaming request returning a JSON error can still be inspected. Non-JSON or
+encoded bodies are skipped. Declared bodies above 256 KiB are skipped before
+reading; unknown-length JSON is materialized with content preserved, then
+skipped if above 131,072 characters. This limits parsing, not initial buffering
+of an unknown-length non-streaming body.
+
+Prompts, generated text, arbitrary error messages, citations, PII values,
+tokens, and subscription keys are never copied to these trace records.
+Streaming forwarding, retries, authentication, rate limits, and response
+body/status are unchanged. JSON parse failures are isolated to inspection
+and surfaced as explicit error telemetry rather than changing the response.
+The gateway expression parser rejects C# `catch (...) when (...)` filters;
+the parser-library check must stay inside the catch block, with unexpected
+exceptions rethrown. Offline C# fixtures do not replace live policy acceptance.
+
+**Repository preparation is not a deployment.** Before a live cross-layer run,
+an administrator must approve deploying the updated policy and configuring its
+existing bounded debug gate: `debugTracingEnabled`, the exact
+`debugTracingSubscriptionId`, the selected API, and an explicitly approved,
+bounded `debugTracingExpiryUtc` covering the longer run plus expected
+processing time. Monitor the expiry; a window shorter than the run will leave
+later turns without these traces. Do not use an indefinite window.
+The default remains disabled. Configure an Application
+Insights logger/diagnostic with at least information-level trace collection.
+Keep request/response body collection disabled and exclude credential headers
+in any separate gateway diagnostic configuration. This gate is a custom policy
+condition, not the retired `Ocp-Apim-Trace` tracing mechanism.
+
+Run the generated APIM KQL in the logger's Application Insights/Log Analytics
+scope. It supports classic `traces` and workspace `AppTraces` names, projects
+only metadata, and left-joins every attempted turn so missing records remain
+visible as `not_observed`. Confirm actual custom-property placement before
+treating unmatched cases as a routing failure. More than one model request can
+share a turn UUID. It expands category records while retaining rows with no
+category metadata. The table includes evaluation source, prompt-block and
+completion-filter indicators, stage/index, category/severity, actual boolean
+flags, annotation-error count, and truncation. To investigate reported issues,
+look for a reported block/filter, true detection/redaction flags, or non-safe
+severity; do not equate annotation presence with enforcement.
+An empty result or ingestion gap is not a clean security result.
+
+Early inbound `return-response`, failures before the debug guard is set, or
+inherited policy termination can bypass these traces. Use standard gateway
+diagnostics for those paths. HTTP 400 alone is not proof of content filtering;
+the policy requires recognized model codes or annotations. The policy reports
+the model's decisions; it does not independently classify content. Full
+streaming-completion coverage requires separate stream-aware instrumentation,
+not enabling whole-stream buffering in this policy.
+
+| Layer | What establishes evidence |
+|---|---|
+| Application | Recorded turn status and UUID |
+| Model safety | Recognized structured upstream block; otherwise manual review |
+| APIM | Matching UUID plus actual model-reported metadata where available; not an independent gateway classifier |
+| Defender | Actual attributable activity/finding, correlated by caller, conversation/session, and UTC |
+| Purview | Actual ingested interaction and policy/classifier evidence; activity alone is not DLP enforcement |
+
+The UUID is not yet a verified per-turn join key in Defender or Purview.
+Keep those service checks pending until real evidence is inspected. For APIM
+trace behavior and error-path support, see Microsoft's
+[trace policy](https://learn.microsoft.com/azure/api-management/trace-policy) and
+[policies allowed in on-error](https://learn.microsoft.com/azure/api-management/api-management-error-handling-policies#policies-allowed-in-on-error).
+Model fields follow the
+[guardrail annotation contract](https://learn.microsoft.com/azure/ai-foundry/openai/concepts/content-filter-annotations).
+Run `pwsh -File .\test\validate-apim-policy-tracing.ps1` from the repository
+root for structural checks and executable C# fixtures extracted from the
+actual policy; these offline tests do not prove live deployment or ingestion.
 
 ### Manual alternative
 
@@ -379,6 +576,40 @@ export failed
 
 The optional unauthenticated test returns `401` and does not affect subsequent
 authenticated chat.
+
+### Verify the initiating human in Defender
+
+After changing caller-attribution code, restart the local API before testing.
+For the approved content-policy test, run `.\starttest.bat` from the
+repository root and sign in as the intended test user. The fixed harness
+still requires its content-recording profile. For an identity-only check in
+metadata-only mode, use `chat.py` instead; caller attribution does not
+require enabling prompt/response recording.
+
+After ingestion, run the newly generated `<marker>-defender.kql`. It projects
+human caller fields only on `InvokeAgent` records and includes conversation,
+session, trace, operation, and parent identifiers for child correlation.
+Verify:
+
+- The user's successful Entra sign-in targets the expected client and API
+  applications during the run window.
+- `CallerUserObjectId` (`RawEventData.UserKey`) on `InvokeAgent` equals
+  that user's actual Entra object ID, not a hash or zero GUID.
+- `CallerUpn` (`RawEventData.UserId`) equals the UPN when the validated
+  access token includes `preferred_username` or legacy `upn`. An absent
+  optional UPN does not invalidate object-ID attribution.
+- `TargetAgentId` is the registered invoked agent. An all-zero `AgentId`
+  is normal for a human-initiated invocation with no calling agent.
+- Child inference/tool events correlate to the invocation. Their
+  `UserKey`/`UserId` can identify the agent's own user account, so do not
+  require those fields to equal the human caller.
+
+Repeat with a second user and verify distinct caller object IDs with no
+cross-user attribution. Metadata-only mode still exports approved caller
+identity; it suppresses prompt and response content, not security identity.
+The local JSON report contains configured application/tenant IDs and is not
+proof of which human signed in. Portal acceptance remains a separate live
+check after the offline tests pass.
 
 ---
 

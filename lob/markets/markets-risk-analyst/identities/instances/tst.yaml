@@ -1,0 +1,13 @@
+instanceKey: tst
+environment: tst
+displayName: Markets Risk Analyst Test
+blueprintRef: markets-risk-analyst-nonprod
+ownerRefs:
+  - principalType: servicePrincipal
+    principalRef: markets-agent-identity-nonprod-provisioner
+deployment:
+  region: null
+  legalEntity: contoso-bank
+lifecycle:
+  state: proposed
+  provisioningEnabled: false

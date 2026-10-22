@@ -1,0 +1,24 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start local portfolio API",
+			"type": "shell",
+			"command": ".\\startapi.bat",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run A365 long security test",
+			"type": "shell",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Start-Sleep -Seconds 20; & '.\\starttest.bat'"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

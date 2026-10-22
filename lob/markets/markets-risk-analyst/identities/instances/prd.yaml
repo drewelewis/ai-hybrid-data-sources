@@ -1,0 +1,13 @@
+instanceKey: prd
+environment: prd
+displayName: Markets Risk Analyst Production
+blueprintRef: markets-risk-analyst-prd
+ownerRefs:
+  - principalType: servicePrincipal
+    principalRef: markets-agent-identity-production-provisioner
+deployment:
+  region: pending-regional-approval
+  legalEntity: pending-legal-entity-approval
+lifecycle:
+  state: proposed
+  provisioningEnabled: false

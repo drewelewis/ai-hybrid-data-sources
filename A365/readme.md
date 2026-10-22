@@ -26,19 +26,24 @@ Use this collection according to the work being performed:
 3. **Design the identity boundary:** Use the
    [blueprint guide](./blueprints.md) and
    [LOB blueprint guidance](./lob_blueprints.md).
-4. **Register and configure an agent:** Follow the
-   [provisioning runbook](./provisioning_runbook.md), then the
+4. **Design automation and promotion:** Use the
+   [DevOps and GitOps guide](./devops.md).
+5. **Choose an onboarding path and register an agent:** Start with the
+   [Microsoft-sourced onboarding guide](./onboarding_agents.md) for
+   integration selection, single-agent and bulk procedures, telemetry, and
+   acceptance gates. Use the [provisioning runbook](./provisioning_runbook.md)
+   for identity operations, then the
    [configuration reference](./configuration_reference.md).
-5. **Wire an application:** Use the
+6. **Wire an application:** Use the
    [existing-agent onboarding guide](./onboarding_agents.md) and the concrete
    [LOB application wiring guide](./lob_app_wiring.md).
-6. **Prove the integration:** Run the
+7. **Prove the integration:** Run the
    [verification process](./verification_process.md).
-7. **Investigate component data:** Use the
+8. **Investigate component data:** Use the
    [Defender guide](./components/defender_guide.md),
    [Purview guide](./components/purview_guide.md), and
    [Entra guide](./components/entra_guide.md).
-8. **Operate and govern it:** Use the
+9. **Operate and govern it:** Use the
    [operations runbook](./operations_runbook.md),
    [tenant governance guide](./tenant_governance.md), and
    [security and privacy guide](./security_and_privacy.md).
@@ -61,10 +66,11 @@ Use this collection according to the work being performed:
 
 | Document | Purpose |
 |---|---|
+| [DevOps and GitOps](./devops.md) | Desired-state pipeline, promotion gates, segregation of duties, evidence, drift, rollback, and tool-selection policy |
 | [Agent 365 CLI guide](./agent365_cli.md) | Installation, authentication, setup, diagnostics, automation, and cleanup |
 | [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
 | [Configuration reference](./configuration_reference.md) | Environment variables, secrets, and compatibility |
-| [Existing-agent onboarding](./onboarding_agents.md) | End-to-end steps for adding Agent 365 to an existing runtime |
+| [Agent onboarding](./onboarding_agents.md) | Microsoft-sourced integration selection, prerequisites, CLI pilot, bulk PowerShell, telemetry, recovery, bank acceptance, and Python reference |
 | [LOB application wiring](./lob_app_wiring.md) | File-by-file runtime wiring for identity, authentication, telemetry, Purview, and Defender |
 | [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |
 

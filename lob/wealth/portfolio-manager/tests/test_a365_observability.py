@@ -269,8 +269,11 @@ def test_invoke_scope_uses_registered_identity_without_content(monkeypatch):
 
     monkeypatch.setattr(InvokeAgentScope, "start", staticmethod(fake_start))
 
-    pseudonymous_user_id = "a" * 64
-    with runtime.invoke_scope("raw-session-A100", pseudonymous_user_id):
+    user_id = "00000000-0000-0000-0000-000000000004"
+    with runtime.invoke_scope(
+        "raw-session-A100", user_id,
+        user_email="reviewer@example.test", user_name="Portfolio Reviewer",
+    ):
         pass
 
     request = captured["request"]
@@ -285,8 +288,10 @@ def test_invoke_scope_uses_registered_identity_without_content(monkeypatch):
     )
     assert (
         captured["caller_details"].user_details.user_id
-        == pseudonymous_user_id
+        == user_id
     )
+    assert captured["caller_details"].user_details.user_email == "reviewer@example.test"
+    assert captured["caller_details"].user_details.user_name == "Portfolio Reviewer"
     assert captured["attributes"]["a365.content_recording"] is False
     assert "user.id" not in captured["attributes"]
     assert "gen_ai.conversation.channel" not in captured["attributes"]
@@ -331,7 +336,7 @@ def test_invoke_scope_records_full_prompt_and_response(monkeypatch):
 
     with runtime.invoke_scope(
         "raw-session-A100",
-        "a" * 64,
+        "00000000-0000-0000-0000-000000000004",
         "Show the account holdings",
     ) as scope:
         record_a365_response(scope, "The account holds several positions.")
@@ -339,10 +344,113 @@ def test_invoke_scope_records_full_prompt_and_response(monkeypatch):
     assert captured["request"].content == "Show the account holdings"
     assert (
         captured["caller_details"].user_details.user_id
-        == "a" * 64
+        == "00000000-0000-0000-0000-000000000004"
     )
     assert captured["response"] == "The account holds several positions."
     assert captured["attributes"]["a365.content_recording"] is True
+
+
+@pytest.fixture
+def local_tracing(monkeypatch):
+    from microsoft.opentelemetry.a365.core.opentelemetry_scope import OpenTelemetryScope
+    from microsoft.opentelemetry.a365.core.exporters.span_processor import A365SpanProcessor
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(A365SpanProcessor())
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("caller-attribution-tests")
+    monkeypatch.setattr(OpenTelemetryScope, "_tracer", tracer)
+    monkeypatch.setenv("ENABLE_OBSERVABILITY", "true")
+    monkeypatch.setenv("ENABLE_A365_OBSERVABILITY", "true")
+    runtime = A365Runtime(A365Settings.load(_enabled_environment()))
+    runtime._token = "token"
+    runtime._expires_at = int(time.time()) + 600
+    yield runtime, tracer, exporter
+    provider.shutdown()
+
+
+def test_real_spans_preserve_human_and_agent_identity_separately(local_tracing):
+    from opentelemetry import baggage
+
+    runtime, tracer, exporter = local_tracing
+    user_id = "00000000-0000-0000-0000-000000000004"
+    with runtime.invoke_scope(
+        "synthetic-session", user_id,
+        user_email="reviewer@example.test", user_name="Portfolio Reviewer",
+    ):
+        assert baggage.get_baggage("user.id") == user_id
+        with tracer.start_as_current_span("chat"):
+            pass
+        with tracer.start_as_current_span("execute_tool"):
+            pass
+
+    spans = {span.name: span for span in exporter.get_finished_spans()}
+    root = spans["invoke_agent TradingPlatformAgent"]
+    for span in spans.values():
+        assert span.attributes["user.id"] == user_id
+        assert span.attributes["user.email"] == "reviewer@example.test"
+        assert span.attributes["user.name"] == "Portfolio Reviewer"
+        assert span.attributes["gen_ai.agent.id"] == runtime.settings.agent_id
+        assert span.attributes["gen_ai.conversation.id"] == _hash_conversation_id(
+            "synthetic-session"
+        )
+        assert "microsoft.agent.user.id" not in span.attributes
+        assert "gen_ai.input.messages" not in span.attributes
+    for name in ("chat", "execute_tool"):
+        assert spans[name].parent.span_id == root.context.span_id
+        assert spans[name].context.trace_id == root.context.trace_id
+    assert baggage.get_baggage("user.id") is None
+
+
+@pytest.mark.asyncio
+async def test_caller_baggage_isolated_across_requests_and_exceptions(local_tracing):
+    import asyncio
+    from opentelemetry import baggage
+
+    runtime, tracer, exporter = local_tracing
+    ready = asyncio.Event()
+    user_ids = [
+        "00000000-0000-0000-0000-000000000004",
+        "00000000-0000-0000-0000-000000000005",
+    ]
+
+    async def invoke(user_id):
+        with runtime.invoke_scope(
+            f"session-{user_id}", user_id,
+            user_email=f"{user_id}@example.test", user_name=f"Reviewer {user_id}",
+        ):
+            ready.set()
+            await ready.wait()
+            await asyncio.sleep(0)
+            assert baggage.get_baggage("user.id") == user_id
+            assert baggage.get_baggage("user.name") == f"Reviewer {user_id}"
+            with tracer.start_as_current_span(user_id):
+                pass
+        assert baggage.get_baggage("user.id") is None
+        assert baggage.get_baggage("user.email") is None
+        assert baggage.get_baggage("user.name") is None
+
+    await asyncio.gather(*(invoke(user_id) for user_id in user_ids))
+    for span in exporter.get_finished_spans():
+        if span.name in user_ids:
+            assert span.attributes["user.id"] == span.name
+            assert span.attributes["user.email"] == f"{span.name}@example.test"
+            assert span.attributes["user.name"] == f"Reviewer {span.name}"
+
+    with pytest.raises(RuntimeError, match="synthetic failure"):
+        with runtime.invoke_scope("failed-session", user_ids[0]):
+            raise RuntimeError("synthetic failure")
+    assert baggage.get_baggage("user.id") is None
+    with runtime.invoke_scope("no-human-session"):
+        assert baggage.get_baggage("user.id") is None
+        assert baggage.get_baggage("user.email") is None
+    root = exporter.get_finished_spans()[-1]
+    assert "user.id" not in root.attributes
+    assert "user.email" not in root.attributes
 
 
 def test_status_never_contains_credentials_or_tokens():

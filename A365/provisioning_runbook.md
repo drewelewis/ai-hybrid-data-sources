@@ -2,36 +2,59 @@
 
 ## Purpose
 
-This runbook registers the existing Trading Platform Agent with Microsoft
-Agent 365 without moving the runtime from its current Docker host.
+This runbook covers approved identity and registration operations. Start with
+the [onboarding guide](./onboarding_agents.md) to select the Microsoft
+integration path, validate prerequisites, and choose single-agent versus
+bulk execution. The Trading Platform Agent remains the concrete self-hosted
+reference; onboarding must not move its runtime from its current Docker host.
 
 It provisions identity and registry artifacts only. It must not create or
 migrate application hosting unless that change is separately approved.
 
+Use the [DevOps and GitOps guide](./devops.md) for source-of-truth,
+plan/apply, approval, promotion, evidence, drift, and tool-selection policy.
+
 ## Selected approach
 
-Use this order:
+Use Microsoft's documented path for the selected scenario:
 
-1. Use the supported Agent 365 existing-agent registration skill/workflow.
-2. Confirm that the workflow can register the agent without creating an unused
-   App Service Plan or Web App.
-3. If registration-only behavior is unavailable, use the typed Microsoft Graph
-   Agent ID APIs.
-4. Do not run `a365 setup all` until its planned Azure resources and cost have
-   been reviewed.
+1. Check built-in integration and registry sync before custom registration.
+2. For a custom agent, validate one nonproduction integration using the
+   [existing-agent quickstart](https://learn.microsoft.com/en-us/microsoft-agent-365/developer/get-started)
+   or [single-agent CLI workflow](https://learn.microsoft.com/en-us/microsoft-agent-365/admin/agent-365-onboarding-cli).
+3. For reviewed batches, use the
+   [official bulk PowerShell workflow](https://learn.microsoft.com/en-us/microsoft-agent-365/admin/bulk-agent-365-onboarding).
+   Its full CSV, runner authentication, WhatIf limits, and recovery procedure
+   are covered in the [onboarding guide](./onboarding_agents.md).
+4. Use typed Graph APIs only for a documented gap or approved enterprise
+   executor. The Markets prototype is not a complete registration workflow.
+5. Review the actual dry-run, permissions, consent, and output artifacts
+   before approval.
+
+The current config-free `a365 setup all --agent-name ... --aiteammate false`
+walkthrough assumes external hosting and creates no Azure hosting resources.
+Config-file deployment can create hosting. Inspect installed-version help,
+configuration mode, authentication, and the plan rather than assuming all
+`setup all` invocations have the same effects.
 
 ## Required roles and prerequisites
 
 - Agent 365 enabled in the tenant.
-- Global Administrator or Agent ID Developer for registration.
-- Global Administrator available for consent.
+- For the interactive CLI walkthrough, at least Agent ID Developer for
+  creation and a Global Administrator consent handoff. Its S2S variant
+  additionally requires Application Administrator or Global Administrator.
+- For unattended bulk provisioning, an approved runner with the required
+  Graph application roles and separate administrator consent. Interactive
+  operator roles do not replace application-role grants.
 - Azure CLI authenticated to the intended tenant.
 - PowerShell 7 or a supported shell.
-- .NET 8 SDK for the Agent 365 CLI.
+- .NET 8 or later for the Agent 365 CLI.
 - Approved blueprint and agent identity sponsors.
-- At least one Microsoft 365 E7 or Agent 365 license for observability.
+- At least one user actually assigned Microsoft 365 E7 or Agent 365 for
+  observability, per the current quickstart; an available unassigned SKU is
+  insufficient. Verify current licensing before execution.
 
-Install or update the CLI:
+Install the approved CLI version, or perform a separately approved update:
 
 ```powershell
 dotnet tool install --global Microsoft.Agents.A365.DevTools.Cli
@@ -86,8 +109,11 @@ would create unapproved hosting, networking, or public endpoints.
 
 ## Microsoft Graph fallback
 
-Use Graph only when the supported registration workflow cannot perform
-registration-only onboarding.
+For a one-agent pilot, prefer the supported workflow above. An approved
+enterprise adapter may also use Graph for demonstrated lifecycle or policy
+gaps; this is not a recommendation to replace the official batch workflow.
+The following steps provision directory identity objects, not a complete
+Agent 365 registration or runtime integration.
 
 Required Graph permissions depend on the provisioning identity and operation.
 Typical permissions include:
@@ -126,10 +152,17 @@ Provision in this order:
 
 6. Assign the sponsor.
 7. Apply only approved permissions.
+8. Create and verify the Agent 365 registration through the supported
+   registration workflow or an explicit `AgentRegistration` bulk row. The
+   identity endpoints below do not create an inventory record.
 
-All requests should include `OData-Version: 4.0`. Use idempotent lookups and
-bounded exponential backoff because directory propagation can delay dependent
-operations.
+The endpoint above matches Microsoft guidance reviewed on October 16, 2026;
+verify the currently supported API version and request shape immediately
+before execution. The typed API references expose v1.0 creation endpoints for
+all three objects. One higher-level Agent Identity guide still contains an
+older beta example. All requests that use `@odata.type` should include
+`OData-Version: 4.0`. Use idempotent lookups and bounded exponential backoff
+because directory propagation can delay dependent operations.
 
 ## Required artifact record
 
@@ -144,6 +177,7 @@ Store non-secret identifiers in an approved local generated configuration:
 | BlueprintPrincipal object ID | Yes |
 | Agent identity client ID | Yes |
 | Agent identity object ID | Yes |
+| Agent 365 registration ID | Yes, separate from the directory identity |
 | Sponsor object ID | Yes |
 | `managerApplications` values | Yes |
 | Credential type and expiry | Yes, not the credential value |

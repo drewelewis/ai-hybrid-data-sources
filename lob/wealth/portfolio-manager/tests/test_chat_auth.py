@@ -7,10 +7,38 @@ import chat
 
 
 @pytest.fixture(autouse=True)
-def reset_device_code_credential():
+def reset_device_code_credential(monkeypatch):
+    monkeypatch.setenv("ENABLE_GRAPH_CALENDAR", "false")
+    monkeypatch.setenv("ENABLE_GRAPH_CALENDAR_WRITE", "false")
     chat._device_code_credential = None
     yield
     chat.close_model_access_credential()
+
+
+@pytest.mark.asyncio
+async def test_calendar_sign_in_uses_blueprint_audience_and_reuses_client(monkeypatch):
+    monkeypatch.setenv("ENABLE_GRAPH_CALENDAR", "true")
+    monkeypatch.setenv("AZURE_TENANT_ID", "tenant-id")
+    monkeypatch.setenv("AZURE_CLIENT_ID", "public-client")
+    monkeypatch.setenv("A365_BLUEPRINT_CLIENT_ID", "blueprint-id")
+    credential = MagicMock()
+    credential.get_token.return_value = SimpleNamespace(token="calendar-token")
+    chat._device_code_credential = credential
+    result = await chat.get_agent_access_token()
+    assert result == "calendar-token"
+    credential.get_token.assert_called_once_with("api://blueprint-id/access_agent_as_user")
+
+
+@pytest.mark.asyncio
+async def test_refresh_keeps_model_and_calendar_tokens_separate(monkeypatch):
+    monkeypatch.setattr(chat, "get_model_access_token", AsyncMock(return_value="model-token"))
+    monkeypatch.setattr(chat, "get_agent_access_token", AsyncMock(return_value="calendar-token"))
+    http = SimpleNamespace(headers={})
+    await chat.refresh_model_access_token(http)
+    assert http.headers == {
+        "Authorization": "Bearer model-token",
+        "X-Agent-Authorization": "Bearer calendar-token",
+    }
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,30 @@
 from __future__ import annotations
 
-import hashlib
 import uuid
+from dataclasses import dataclass
 
 import jwt
 
 
 class UserTokenValidationError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ValidatedUserIdentity:
+    tenant_id: str
+    object_id: str
+    upn: str | None = None
+    name: str | None = None
+
+
+def _optional_string_claim(claims: dict[str, object], name: str) -> str | None:
+    value = claims.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise UserTokenValidationError(f"User token has an invalid {name} claim.")
+    return value.strip() or None
 
 
 def _require_uuid_claim(claims: dict[str, object], name: str) -> str:
@@ -41,7 +58,10 @@ def _audiences_from_scope(token_scope: str) -> list[str]:
 
 
 class EntraUserTokenValidator:
-    def __init__(self, tenant_id: str, token_scope: str):
+    def __init__(
+        self, tenant_id: str, token_scope: str, *, required_scope: str | None = None
+    ):
+        self._required_scope = required_scope
         try:
             self._tenant_id = str(uuid.UUID(tenant_id))
         except ValueError as error:
@@ -59,7 +79,7 @@ class EntraUserTokenValidator:
             cache_keys=True,
         )
 
-    def pseudonymous_user_id(self, token: str) -> str:
+    def validate(self, token: str) -> ValidatedUserIdentity:
         try:
             signing_key = self._jwks_client.get_signing_key_from_jwt(token)
             claims = jwt.decode(
@@ -105,6 +125,22 @@ class EntraUserTokenValidator:
                 "Bearer token tenant does not match A365_TENANT_ID."
             )
         object_id = _require_uuid_claim(claims, "oid")
-        return hashlib.sha256(
-            f"{tenant_id}:{object_id}".encode("ascii")
-        ).hexdigest()
+        if claims.get("idtyp") == "app":
+            raise UserTokenValidationError(
+                "An app-only token cannot identify a human caller."
+            )
+        if self._required_scope is not None:
+            scopes = claims.get("scp")
+            if not isinstance(scopes, str) or self._required_scope not in scopes.split():
+                raise UserTokenValidationError(
+                    "User token is missing the required delegated API scope."
+                )
+        return ValidatedUserIdentity(
+            tenant_id=tenant_id,
+            object_id=object_id,
+            upn=(
+                _optional_string_claim(claims, "preferred_username")
+                or _optional_string_claim(claims, "upn")
+            ),
+            name=_optional_string_claim(claims, "name"),
+        )

@@ -56,6 +56,35 @@ remains available, and revalidate navigation after retirement.
 Do not confuse the transition between portal experiences with loss of
 underlying activity.
 
+## Saved investigation report
+
+Open [DSPM Reports](https://purview.microsoft.com/dspm/reports?tid=00648bab-6c91-4292-9a2a-2297df511222),
+enable **Customize reports**, then open **A365 - Agent Security Investigation**.
+The customization toggle resets after a full page reload. The saved report
+and its cards persist; enabling the toggle again reveals the custom report.
+
+The report's **Sensitive data and DLP signals** section contains seven cards:
+
+- Total Sensitive Information Types Detected.
+- Total policy trigger volume.
+- Unique users involved in triggers.
+- Total protective actions taken.
+- DLP Policies Triggered by Workload.
+- DLP Policies Triggered by Users.
+- Top DLP Rules Triggered.
+
+These supplied cards are organization-wide DLP indicators, **not a filter to
+one agent or test**. The charts state a 30-day window. Zero metrics or empty
+charts do not prove that a test was ingested, evaluated, or safe.
+
+As verified on October 19, 2026, the custom card editor in this tenant exposes
+only **Label analytics activity data** as its data provider, not arbitrary
+AI-event KQL. The report uses the supplied DLP cards rather than inventing
+AI-specific metrics. Use [AI observability](https://purview.microsoft.com/dspm/agentobservability)
+and Activity Explorer for agent/activity investigation, and the
+[Defender investigation workbook](./defender_guide.md#saved-investigation-workbook)
+for run, caller, session, and alert correlation.
+
 ## Major Purview areas at a glance
 
 | Area | What to look for | Evidence type |
@@ -179,11 +208,14 @@ Agent 365 observability does not automatically make every interaction subject
 to every DLP policy. Coverage depends on the supported workload, event type,
 policy location, content availability, and licensing.
 
-The repeatable verification harness injects one or two safe randomized exploit
-attempts per run. With `--include-policy-scenarios`, at least one is a
-synthetic payment-card or unethical-behavior candidate and the harness
-requires content recording. Use the report's UTC window and scenario names to
-find exact rows. Its expected-signal labels are hypotheses; only Purview
+The repeatable verification harness injects one or two bounded randomized
+three-turn attack chains per run. The fixed profile includes at least one
+synthetic payment-card, fictional misconduct, or jailbreak policy candidate
+and requires content recording; there is no `--include-policy-scenarios`
+operator flag. Scenarios include confidential labels, lack of consent,
+disclosure/evasion pressure, and contextual follow-ups. Use the report's UTC
+window and attack name/step to correlate the activity. Its expected-signal
+labels and fixture echoes are hypotheses or review inputs; only Purview
 policy details prove evaluation or a match.
 
 ## 5. Insider Risk Management

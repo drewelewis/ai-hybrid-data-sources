@@ -26,6 +26,7 @@ asyncpg
 
 # Environment variables
 python-dotenv
+tzdata
 
 # Testing
 pytest
@@ -34,5 +35,4 @@ aiohttp
 
 # Terminal colors
 colorama
-
 
