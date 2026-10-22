@@ -5937,7 +5937,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-22 16:30 EDT - Publish all pending repository changes
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Commit and push all pending changes to the current main branch,
@@ -5946,12 +5946,27 @@ connection strings, or sensitive portfolio content.
   with the Copilot co-author trailer, and push normally to origin/main in
   drewelewis/ai-hybrid-data-sources. Preserve ignored credentials and local
   runtime/evidence files. Never force-push or run tenant provisioning.
-- **Result:** Pending preflight, validation, commit and push.
-- **Validation:** Check secret/local-file exclusions, offline Portfolio Manager
-  and Markets Risk identity tests, APIM policy probes, staged whitespace and
-  remote branch equality after publication. Live MCP/API scripts are not unit
-  tests and will not be run.
+- **Result:** Published all 75 pending file changes in commit
+  ff79153bd0d6b4bdc4b14b5609bd1009bf5ad8f4
+  (Add Graph scheduling pilot and governed Agent ID delivery) to origin/main.
+  Included the Graph pilot, operations/tools split, CLI colors, account-reference
+  guidance, test relocation, Agent 365 documentation/observability, Markets Risk
+  desired-state and controlled workflow, APIM safety changes and launch tasks.
+  Removed only extra EOF blank lines from the two new identity scaffolding
+  files so the staged whitespace check passed. No dependencies were installed,
+  services restarted, infrastructure deployed or tenant operations invoked.
+- **Validation:** All 319 offline Portfolio Manager tests and 26 Markets Risk
+  renderer/provisioner tests passed. APIM tracing validation and model-safety
+  probes passed (106 safety assertions). Local credential-pattern checks
+  examined 70 pending text files; five matches were one repeated artificial
+  subscription-key fixture, not a generated key. Confirmed ignored .env,
+  verification results, VPN secrets and compiled infrastructure remained out
+  of the commit. No secret values were printed. Staged whitespace passed;
+  remote origin/main exactly matched the published implementation commit.
+  Live MCP/API scripts were deliberately excluded from offline unit validation.
 - **Rollback:** Revert the resulting commit in a new commit if requested;
   do not rewrite published history or revert cloud/calendar state.
 - **Follow-up:** The new identity workflow is PR/manual-dispatch driven;
-  publishing it does not itself provision tenant objects.
+  publishing it does not itself provision tenant objects. Publish this
+  completion record in a follow-up documentation commit, without amending
+  the implementation commit.
