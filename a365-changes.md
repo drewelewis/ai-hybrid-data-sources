@@ -6341,3 +6341,77 @@ connection strings, or sensitive portfolio content.
   of published content while retaining audit history; no history rewriting.
 - **Follow-up:** None for the published content. Verify this audit commit's
   push and final clean/upstream state before reporting completion.
+
+## 2026-10-25 12:48 EDT - Put CLI client application lookup before configuration
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Give IT the exact command to obtain `clientAppId` before
+  asking them to populate the onboarding configuration.
+- **Change:** Make the read-only CLI client lookup the first numbered item
+  in Step 3 of `A365/it_to_developer_flow.md`; document expected output,
+  selection/failure handling and the result's place in the JSON template.
+  Clarify Azure CLI's read-only lookup role without changing A365 provisioning.
+- **Result:** Step 3 now begins with an exact `az ad sp list` command that
+  retrieves CLI application IDs by the exact `Agent 365 CLI` display name.
+  Showed the expected Microsoft-managed client ID,
+  `f54280f4-395e-4ea8-9e48-bf2d4952aa14`, and explicit empty/error/multiple-result
+  handling. The template and source table now direct IT to use that result.
+  Kept provisioning with A365 CLI; no application/runtime files changed.
+- **Validation:** Installed A365 CLI root/query help confirms no standalone
+  client-ID lookup; Microsoft Learn confirms the managed client ID.
+  Installed Azure CLI list help supports the exact filter, query and TSV
+  output options. The first-item/template provenance assertions, nine
+  PowerShell block parses, three JSON parses and whitespace checks pass.
+  No Markdown links or heading anchors changed. Only help/static checks ran;
+  no tenant queries, setup, identities, credentials or permissions changed.
+- **Rollback:** Remove only these lookup/template clarification edits;
+  preserve previous guide changes and audit history.
+- **Follow-up:** Changes remain local and uncommitted until publication
+  is requested.
+
+## 2026-10-25 13:00 EDT - Explain source control for the protected IT workspace
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Explain whether the Step 2 request workspace belongs in source
+  control, why, and which reviewed non-secret artifacts can be versioned.
+- **Change:** Add an explicit live-workspace exclusion and artifact policy
+  to Step 2 of `A365/it_to_developer_flow.md`; align Step 6 backup guidance.
+- **Result:** Step 2 now excludes the live workspace from all Git repositories,
+  including private ones, and distinguishes credentials/generated state,
+  operational evidence/exports and separately reviewed non-secret artifacts.
+  Explained history/clone retention, Windows-protected state, ignore-rule
+  limitations and credential-exposure response. Step 6 explicitly requires
+  approved IT backup storage rather than Git. Preserved the prior client-ID
+  lookup edits; no application files or Git settings changed.
+- **Validation:** Static policy/retention assertions, preservation of the
+  first-item client lookup, three JSON examples, existing generated-state
+  ignore protection, whitespace and the two-file documentation scope pass.
+  Documentation-only checks; no tenant, runtime or provisioning operations.
+- **Rollback:** Remove only the source-control and backup clarification;
+  preserve previous edits and audit history.
+- **Follow-up:** Both documentation updates remain local and uncommitted
+  until publication is requested.
+
+## 2026-10-25 16:33 EDT - Publish client lookup and workspace source-control guidance
+
+- **Status:** Planned
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Publish the approved onboarding clarifications to GitHub.
+- **Change:** Commit and push only `A365/it_to_developer_flow.md` and
+  `a365-changes.md` on `main`; preserve existing history and application files.
+  Record the verified outcome in this entry and publish an audit-only
+  follow-up commit with the required co-author trailer.
+- **Result:** Pending. Initial checks show only the two expected Markdown
+  files changed; no staged changes or application modifications.
+- **Validation:** Check documentation syntax, JSON, workspace/lookup
+  requirements, added secret patterns and whitespace; fetch upstream and
+  verify the published SHA, branch synchronization and final clean state.
+- **Rollback:** Any reversal requires a separately approved follow-up revert;
+  do not amend published commits, rewrite history or force-push.
+- **Follow-up:** Update this entry after the content push, then publish and
+  verify the audit update.

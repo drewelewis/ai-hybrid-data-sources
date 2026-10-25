@@ -36,7 +36,27 @@ then the child identity and registration. No existing blueprint IDs are needed.
 ## 2. IT prepares one protected request workspace
 
 **Location:** IT's approved, access-controlled Windows workstation/storage,
-not the agent's runtime host or source repository. For a **new** Jira request:
+not the agent's runtime host or source repository.
+
+**Source control: do not put the live request workspace in Git, even a private
+repository.** Do not initialize a repository here or place this folder inside
+an existing checkout. It is provisioning state, not the agent's code project.
+
+| Material | Source-control policy and reason |
+|---|---|
+| `a365.generated.config.json`, credentials and protected credential values | **Never commit.** Generated state can contain credentials; Windows protection does not make the file safe to publish or portable. Retain state in protected IT storage and runtime secrets in the approved secret store. |
+| Raw logs, support bundles and the live `evidence\` / `handoff\` folders | **Do not commit the folders or exports.** They can contain sensitive identity, operator or operational details, even after automated redaction. Keep them in controlled IT storage; send reviewed material through the approved Jira/SharePoint channel. |
+| Runbook, placeholder-only configuration template, approved permission definitions, reviewed non-secret desired-state copy | **May be versioned separately** in an IT-owned repository if policy permits. This supports review, approvals and repeatability without copying the live workspace. IDs are not secrets, but review tenant-specific metadata and exclude credentials and generated state. |
+
+The working `a365.config.json` stays in this protected folder; a reviewed
+non-secret copy is a separate source-control artifact, not a workspace backup.
+Git history and clones retain committed content after a later deletion;
+private repository access is not a substitute for secret storage.
+Ignore rules are defense in depth, not permission to commit sensitive files,
+and do not protect files already tracked. If a credential is committed, treat
+it as exposed and have IAM revoke/rotate it under the incident process.
+
+For a **new** Jira request:
 
 ```powershell
 New-Item -ItemType Directory -Path "C:\A365-Requests\A365-1042"
@@ -75,7 +95,8 @@ profile, not this request folder. Treat original logs as restricted.
 | `a365 --version` | Confirm the approved CLI | Prints version; creates nothing |
 | `az login --tenant "<tenant-guid>"` | Establish the CLI's prerequisite operator context | Signs in locally; creates no identity objects |
 
-Azure CLI above is **login only**, not a second provisioning procedure.
+Azure CLI is used only for login here and the **read-only client lookup**
+in Step 3, not a second provisioning procedure.
 The workstation needs the CLI's approved .NET/Azure CLI/PowerShell-module
 prerequisites; operators do not run the underlying Graph modules themselves.
 Do not bypass failed requirements or auto-approve extra clients/consent.
@@ -91,9 +112,31 @@ to exist beforehand and is not downloaded from the registry or exported
 from a blueprint. Even an existing blueprint might have no CLI configuration
 file; IT assembles this request's input from the template and approved settings.
 
-1. Copy the JSON below into a text editor.
-2. Replace the tenant/name placeholders using the sources in the table.
-3. Save as `C:\A365-Requests\A365-1042\a365.config.json`, not
+1. **Get your `clientAppId`.** IT runs this read-only command after the
+   Step 2 login to find the CLI's sign-in application in the approved tenant:
+
+   ```powershell
+   az ad sp list --filter "displayName eq 'Agent 365 CLI'" --query "[].appId" --output tsv
+   ```
+
+   **Expected output for the Microsoft-managed CLI client used here:**
+
+   ```text
+   f54280f4-395e-4ea8-9e48-bf2d4952aa14
+   ```
+
+   **Outcome:** prints application/client IDs; creates or changes nothing.
+   Copy the expected ID into `clientAppId` below, **not** a service principal
+   object ID, blueprint ID or child identity ID. If the command fails, prints
+   nothing, or does not include the expected ID, stop and ask IAM to confirm
+   the approved CLI client; do not create one or choose another by guesswork.
+   If multiple IDs appear, use the expected Microsoft-managed ID only.
+   A365 CLI has no standalone client-ID lookup command.
+
+2. Copy the JSON below into a text editor.
+3. Replace `<cli-client-app-id>` with the ID from item 1 and the tenant/name
+   placeholders using the sources in the table.
+4. Save as `C:\A365-Requests\A365-1042\a365.config.json`, not
    `a365.config.json.txt`. Run Step 4 from this same folder.
 
 **Retrying an existing request:** keep its existing configuration and generated
@@ -107,7 +150,7 @@ state; do not recreate the workspace or overwrite it with the starter template.
 ```json
 {
   "tenantId": "<tenant-guid>",
-  "clientAppId": "f54280f4-395e-4ea8-9e48-bf2d4952aa14",
+  "clientAppId": "<cli-client-app-id>",
   "agentBlueprintDisplayName": "portfolio-review-nonprod Blueprint",
   "agentIdentityDisplayName": "portfolio-review-nonprod-01 Identity",
   "agentDescription": "A365-1042: external portfolio review agent",
@@ -121,7 +164,7 @@ state; do not recreate the workspace or overwrite it with the starter template.
 | Parameter | Source and exact use |
 |---|---|
 | `tenantId` | Entra ID > Overview > Tenant ID; must match the approved login |
-| `clientAppId` | Provided in this template: Microsoft Agent 365 CLI public client; **not** the blueprint ID |
+| `clientAppId` | Step 3, item 1: ID returned for the approved Microsoft Agent 365 CLI public client; **not** a service principal object ID or blueprint/child ID |
 | `agentBlueprintDisplayName` | Create: approved new name from Jira. Reuse: exact existing name from step 1 |
 | `agentIdentityDisplayName` | New runtime name approved in Jira; a same-name child under that blueprint is reused |
 | `agentDescription` | Jira key and approved business purpose |
@@ -301,7 +344,8 @@ a365 logs export setup --output ".\evidence\support-bundle"
 original logs or create tenant objects. Review redaction before sharing.
 
 IT retains the input/generated state in controlled storage under its retention
-policy; do not delete the workspace after handoff. Back it up securely.
+policy; do not delete the workspace after handoff. Back it up securely in
+approved IT storage, **not Git**, following Step 2's source-control policy.
 Windows-protected credentials can require the original operator/machine;
 copying the file alone is not a tested credential-recovery procedure.
 Deleting local folders does **not** delete tenant identities or registrations.
