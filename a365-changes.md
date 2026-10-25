@@ -6398,7 +6398,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-25 16:33 EDT - Publish client lookup and workspace source-control guidance
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository | Workstation
 - **Requested by:** User
 - **Purpose:** Publish the approved onboarding clarifications to GitHub.
@@ -6406,12 +6406,19 @@ connection strings, or sensitive portfolio content.
   `a365-changes.md` on `main`; preserve existing history and application files.
   Record the verified outcome in this entry and publish an audit-only
   follow-up commit with the required co-author trailer.
-- **Result:** Pending. Initial checks show only the two expected Markdown
-  files changed; no staged changes or application modifications.
-- **Validation:** Check documentation syntax, JSON, workspace/lookup
-  requirements, added secret patterns and whitespace; fetch upstream and
-  verify the published SHA, branch synchronization and final clean state.
+- **Result:** Committed only the two expected Markdown files as
+  `56e63acb4a74c253972e2fbe5d914fdd2527f42f`
+  (`Clarify Agent 365 client lookup and workspace source control`) and
+  pushed `main` to `origin/main`. GitHub's commit API returned that exact
+  SHA for `main`; the worktree was clean and synchronized after the push.
+  No application files, dependencies, Git settings or tenant objects changed.
+- **Validation:** Fetched upstream before committing; no divergence.
+  Exact two-file scope, lookup/template and workspace/backup assertions,
+  nine PowerShell command block parses, three JSON examples, added-secret-
+  pattern and staged whitespace checks passed. No untracked files or
+  unexpected staged content were included. No procedure commands or runtime
+  tests were run for these documentation-only changes.
 - **Rollback:** Any reversal requires a separately approved follow-up revert;
   do not amend published commits, rewrite history or force-push.
-- **Follow-up:** Update this entry after the content push, then publish and
-  verify the audit update.
+- **Follow-up:** None for the published content. Publish this audit update
+  and verify the final GitHub SHA, upstream synchronization and clean state.
