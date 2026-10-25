@@ -34,6 +34,9 @@ Use this collection according to the work being performed:
    acceptance gates. Use the [provisioning runbook](./provisioning_runbook.md)
    for identity operations, then the
    [configuration reference](./configuration_reference.md).
+   For IT-owned provisioning, follow the
+   [Jira-to-IT-to-developer flow](./it_to_developer_flow.md) for blueprint
+   selection, commands, secure artifacts, two-way handoff and acceptance.
 6. **Wire an application:** Use the
    [existing-agent onboarding guide](./onboarding_agents.md) and the concrete
    [LOB application wiring guide](./lob_app_wiring.md).
@@ -71,6 +74,7 @@ Use this collection according to the work being performed:
 | [Provisioning runbook](./provisioning_runbook.md) | Registration, verification, consent, artifacts, and cleanup |
 | [Configuration reference](./configuration_reference.md) | Environment variables, secrets, and compatibility |
 | [Agent onboarding](./onboarding_agents.md) | Microsoft-sourced integration selection, prerequisites, CLI pilot, bulk PowerShell, telemetry, recovery, bank acceptance, and Python reference |
+| [IT-to-developer flow](./it_to_developer_flow.md) | Jira intake, blueprint reuse/create decisions, IT commands, secure handoff, developer implementation and joint acceptance for on-premises agents |
 | [LOB application wiring](./lob_app_wiring.md) | File-by-file runtime wiring for identity, authentication, telemetry, Purview, and Defender |
 | [Observability reference](./observability_reference.md) | Trace model, attributes, privacy, and hunting queries |
 

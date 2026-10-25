@@ -1,3 +1,4 @@
+# tag:A365 verification - Mocked Graph OBO, feature gates, bounded reads and caller/session isolation.
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock

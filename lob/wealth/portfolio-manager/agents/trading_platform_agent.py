@@ -88,6 +88,7 @@ Guidelines:
 - Never fabricate trade data – only report what the database returns
 """
 
+# tag:A365 graph - Define calendar-reading behavior, untrusted-data rules and ledger-account linking.
 CALENDAR_INSTRUCTIONS = """
 Calendar and portfolio-review pilot:
 - For a full schedule, call get_calendar_schedule, not the filtered review tool.
@@ -122,6 +123,7 @@ Calendar and portfolio-review pilot:
   disabled in this session. Do not offer to create invitations in read-only mode.
 """
 
+# tag:A365 approval - Explain proposal-only model tools and require the separate human confirmation flow.
 CALENDAR_WRITE_INSTRUCTIONS = """
 Optional meeting briefing proposals:
 - Explain the enabled invitation workflow accurately: "I can prepare this
@@ -184,6 +186,7 @@ async def create_trading_platform_agent(
         )
 
     headers = config.default_headers
+    # tag:A365 verification - Correlate each test turn with APIM evidence using a request-local UUID header.
     if verification_id is not None:
         headers = {
             **(headers or {}),
@@ -197,6 +200,7 @@ async def create_trading_platform_agent(
         default_headers=headers,
     )
 
+    # tag:A365 identity - Attribute framework activity to the child agent, not the blueprint application.
     a365_agent_id = calendar.operations.settings.agent_id if calendar else None
     if calendar is None and os.getenv("ENABLE_A365_OBSERVABILITY", "").strip().lower() in {
         "1",
@@ -220,6 +224,7 @@ async def create_trading_platform_agent(
         ai_function(run_query),
         ai_function(check_database_health),
     ]
+    # tag:A365 graph - Calendar mode removes ledger insertion and registers reads plus gated proposals only.
     if calendar is None:
         tools.append(ai_function(insert_trade_event))
     else:

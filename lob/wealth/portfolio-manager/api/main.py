@@ -112,6 +112,7 @@ calendar_creation_locks: dict[tuple[str, str], asyncio.Lock] = {}
 class ChatRequest(BaseModel):
     session_id: str  = Field(..., description="Unique session identifier")
     message:    str  = Field(..., description="Natural-language message for the agent")
+    # tag:A365 verification - Accept a typed correlation marker, never an asserted caller identity.
     verification_id: UUID | None = Field(
         default=None, description="Optional test correlation ID; not caller identity."
     )
@@ -158,6 +159,7 @@ class QueryRequest(BaseModel):
 async def startup():
     global agent, client_supplied_auth, user_token_validator, model_endpoint_mode
     global graph_calendar_settings, graph_user_token_validator
+    # tag:A365 identity - Gate Graph access and validate incoming tokens against the blueprint API scope.
     graph_calendar_settings = GraphCalendarSettings.from_environment()
     graph_user_token_validator = None
     if graph_calendar_settings is not None:
@@ -175,6 +177,7 @@ async def startup():
     print(f"[{SERVICE_NAME}] Initializing TradingPlatformAgent ...")
     if not client_supplied_auth:
         agent = await create_trading_platform_agent()
+    # tag:A365 identity - Validate device-code callers before using their identity for telemetry or Graph.
     elif graph_calendar_settings is not None or os.getenv("ENABLE_A365_OBSERVABILITY", "").strip().lower() in {
         "1",
         "true",
@@ -194,6 +197,7 @@ async def startup():
     print(f"[{SERVICE_NAME}] Connecting to database ...")
     await db_ops.initialize()
 
+    # tag:A365 telemetry - Start background exporter-token refresh independently of model authentication.
     await start_a365_token_refresh()
 
     print(f"[{SERVICE_NAME}] Ready — docs at http://localhost:8989/docs")
@@ -201,6 +205,7 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
+    # tag:A365 telemetry - Stop token refresh and flush queued spans before releasing service resources.
     await stop_a365_token_refresh()
     flush_a365_telemetry()
     await db_ops.close()
@@ -225,6 +230,7 @@ def _require_db():
         raise HTTPException(status_code=503, detail="Database not connected yet.")
 
 
+# tag:A365 identity - Validate the separate user assertion and create request-local Graph operations.
 async def _calendar_caller(
     agent_authorization: str | None,
 ) -> tuple[ValidatedUserIdentity | None, GraphOperations | None]:
@@ -247,6 +253,7 @@ async def _calendar_caller(
     return caller, GraphOperations(graph_calendar_settings, token)
 
 
+# tag:A365 identity - Isolate Graph-enabled conversations and pending approvals by tenant and user.
 def _session_key(
     session_id: str, caller: ValidatedUserIdentity | None
 ) -> str | tuple[str, str, str]:
@@ -258,6 +265,7 @@ def _session_key(
 
 
 # ── Root & health ──────────────────────────────────────────────────────────────
+# Purpose: Provide service metadata and an endpoint map for API discovery.
 @app.get("/")
 async def root():
     return {
@@ -285,6 +293,7 @@ async def root():
     }
 
 
+# Purpose: Report service readiness, database connectivity and enabled integrations.
 @app.get("/health")
 async def health():
     """Service health including database connectivity."""
@@ -298,6 +307,7 @@ async def health():
         "framework": "Microsoft Agent Framework",
         "model_endpoint_mode": model_endpoint_mode,
         "verification_correlation": "model_header_uuid_v1",
+        # tag:A365 telemetry - Let health checks distinguish disabled, ready and degraded observability.
         "a365_observability": get_a365_status(),
         "graph_calendar": {
             "enabled": graph_calendar_settings is not None,
@@ -315,6 +325,7 @@ async def health():
 
 
 # ── Chat ───────────────────────────────────────────────────────────────────────
+# Purpose: Run conversational agent tools with session context; calendar writes remain proposals.
 @app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 async def chat(
     request: ChatRequest,
@@ -348,6 +359,7 @@ async def chat(
                     status_code=401,
                     detail=str(error),
                 ) from error
+    # tag:A365 identity - Require model and Graph caller tokens to identify the same tenant and user.
     calendar_caller, calendar_ops = await _calendar_caller(agent_authorization)
     if calendar_caller is not None:
         if caller is not None and (
@@ -360,7 +372,9 @@ async def chat(
         caller = calendar_caller
     session_key = _session_key(request.session_id, caller)
     calendar = PortfolioReviewCalendar(calendar_ops) if calendar_ops is not None else None
+    # tag:A365 approval - A new chat turn invalidates the previous pending calendar approval.
     pending_calendar_briefings.pop(session_key, None)
+    # tag:A365 telemetry - Wrap the agent run with authenticated caller attribution and error recording.
     await prepare_a365_telemetry()
     try:
         with a365_invoke_scope(
@@ -388,6 +402,7 @@ async def chat(
                 response = await request_agent.run(request.message, thread=thread)
                 response_text = response.text or ""
                 record_a365_response(telemetry_scope, response_text)
+                # tag:A365 approval - Return a staged preview; only separate decision routes may execute it.
                 proposal = (
                     calendar_ops.pending_meeting or calendar_ops.pending_briefing
                 ) if calendar_ops is not None else None
@@ -411,6 +426,8 @@ async def chat(
         raise http_error from error
 
 
+# tag:A365 approval - Clearing a caller's session also discards its pending calendar proposal.
+# Purpose: Clear conversation history and invalidate any pending calendar approval for the session.
 @app.post("/clear_session")
 async def clear_session(
     request: ClearSessionRequest,
@@ -424,6 +441,8 @@ async def clear_session(
     return {"status": "cleared", "session_id": request.session_id}
 
 
+# tag:A365 approval - API-only decision boundary for an existing meeting's briefing update.
+# Purpose: Confirm or cancel a staged meeting-body update outside the model's control.
 @app.post("/calendar/briefing/decision")
 async def calendar_briefing_decision(
     request: CalendarBriefingDecision,
@@ -433,6 +452,8 @@ async def calendar_briefing_decision(
     return await _calendar_decision(request, agent_authorization, creating=False)
 
 
+# tag:A365 approval - API-only decision boundary for creating and sending a new invitation.
+# Purpose: Confirm or cancel a staged invitation; authenticated approval, not the model, authorizes creation.
 @app.post("/calendar/meeting/decision")
 async def calendar_meeting_decision(
     request: CalendarBriefingDecision,
@@ -442,6 +463,7 @@ async def calendar_meeting_decision(
     return await _calendar_decision(request, agent_authorization, creating=True)
 
 
+# tag:A365 approval - Enforce caller/session binding, single-use expiry and serialized invitation creation.
 async def _calendar_decision(
     request: CalendarBriefingDecision, agent_authorization: str | None, *, creating: bool,
 ):
@@ -473,6 +495,7 @@ async def _calendar_decision(
 
 
 # ── Accounts endpoint ─────────────────────────────────────────────────────────
+# Purpose: Discover the account IDs available in the portfolio ledger.
 @app.get("/accounts")
 async def list_accounts():
     """Return a sorted list of all distinct account IDs in the ledger."""
@@ -485,6 +508,7 @@ async def list_accounts():
 
 
 # ── Structured portfolio endpoints ─────────────────────────────────────────────
+# Purpose: Retrieve all account positions in one call for cross-account comparisons and risk scans.
 @app.get("/portfolio/summary/all", operation_id="getAllPortfolioSummaries")
 async def all_portfolio_summaries():
     """
@@ -502,6 +526,7 @@ async def all_portfolio_summaries():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Purpose: Summarize one account's holdings, cost basis and latest observed prices.
 @app.get("/portfolio/{account_id}")
 async def portfolio_summary(account_id: str):
     """
@@ -520,6 +545,7 @@ async def portfolio_summary(account_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Purpose: Retrieve an account's BUY/SELL history with optional type and date filters.
 @app.get("/portfolio/{account_id}/trades")
 async def trade_history(
     account_id: str,
@@ -541,6 +567,7 @@ async def trade_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Purpose: Retrieve an account's ledger events, including price observations, for a chosen period.
 @app.get("/portfolio/{account_id}/events")
 async def account_events(
     account_id: str,
@@ -557,6 +584,7 @@ async def account_events(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Purpose: Drill into the ledger history of one ticker within one account.
 @app.get("/portfolio/{account_id}/{ticker_symbol}/events", operation_id="getAccountTickerEvents")
 async def account_ticker_events(
     account_id:    str,
@@ -582,6 +610,7 @@ async def account_ticker_events(
 
 
 # ── Ticker endpoints ───────────────────────────────────────────────────────────
+# Purpose: Return a ticker's latest recorded price, not a live market quote.
 @app.get("/ticker/{ticker_symbol}/price")
 async def latest_price(ticker_symbol: str):
     """Most recently observed market price for a ticker."""
@@ -597,6 +626,7 @@ async def latest_price(ticker_symbol: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Purpose: Retrieve a ticker's ledger events across accounts for historical analysis.
 @app.get("/ticker/{ticker_symbol}/events")
 async def ticker_events(
     ticker_symbol: str,
@@ -614,6 +644,7 @@ async def ticker_events(
 
 
 # ── Analysis context (pre-computed for o1 analyst agent) ─────────────────────
+# Purpose: Supply computed holdings metrics and anomaly flags for downstream portfolio analysis.
 @app.get("/portfolio/{account_id}/analysis-context", operation_id="getAccountAnalysisContext")
 async def account_analysis_context(account_id: str):
     """
@@ -662,6 +693,7 @@ async def account_analysis_context(account_id: str):
 
 
 # ── Event insertion ────────────────────────────────────────────────────────────
+# Purpose: Write a BUY, SELL or PRICE record to the ledger, not execute a brokerage trade.
 @app.post("/events", status_code=201)
 async def insert_event(event: InsertEventRequest):
     """
@@ -686,6 +718,7 @@ async def insert_event(event: InsertEventRequest):
 
 
 # ── Dynamic read-only SQL query ─────────────────────────────────────────────────
+# Purpose: Run custom read-only ledger reports not covered by the structured endpoints.
 @app.post("/query", operation_id="runQuery")
 async def dynamic_query(request: QueryRequest):
     """
@@ -706,6 +739,7 @@ async def dynamic_query(request: QueryRequest):
 
 
 # ── Agent status ───────────────────────────────────────────────────────────────
+# Purpose: Describe configured agent tools and API capabilities without invoking the model.
 @app.get("/agent/status")
 async def agent_status():
     """Trading Platform Agent capabilities and registered tools."""

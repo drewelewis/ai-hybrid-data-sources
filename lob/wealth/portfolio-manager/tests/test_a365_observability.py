@@ -1,3 +1,4 @@
+# tag:A365 verification - Offline coverage of telemetry settings, identity exchange, spans and content gates.
 import base64
 import json
 import time

@@ -1,3 +1,4 @@
+# tag:A365 verification - Shared human-token validation used by telemetry attribution and Graph access.
 import jwt
 import pytest
 

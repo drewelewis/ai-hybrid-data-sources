@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if __name__ == "__main__":
+    # tag:A365 telemetry - Initialize instrumentation before importing the API and agent framework.
     from observability.a365 import initialize_a365_observability
 
     initialize_a365_observability(os.environ)

@@ -42,6 +42,7 @@ services:
       - SERVICE_NAME=ai-agent-starter-portfolio-manager
       - SERVICE_VERSION=1.0.0
 
+      # tag:A365 config - Forward telemetry and child-agent identity settings; secrets stay in ignored .env.
       # Microsoft Agent 365 metadata-only observability by default
       - ENABLE_A365_OBSERVABILITY=${ENABLE_A365_OBSERVABILITY:-false}
       - A365_TENANT_ID=${A365_TENANT_ID:-}
@@ -51,6 +52,7 @@ services:
       - A365_CHANNEL_NAME=${A365_CHANNEL_NAME:-local-cli}
       - A365_SERVER_ADDRESS=${A365_SERVER_ADDRESS:-localhost}
       - A365_SERVER_PORT=${A365_SERVER_PORT:-8989}
+      # tag:A365 config - Forward the independent Graph read/write gates and review-day offset.
       - ENABLE_GRAPH_CALENDAR=${ENABLE_GRAPH_CALENDAR:-false}
       - ENABLE_GRAPH_CALENDAR_WRITE=${ENABLE_GRAPH_CALENDAR_WRITE:-false}
       - GRAPH_CALENDAR_UTC_OFFSET=${GRAPH_CALENDAR_UTC_OFFSET:-+00:00}

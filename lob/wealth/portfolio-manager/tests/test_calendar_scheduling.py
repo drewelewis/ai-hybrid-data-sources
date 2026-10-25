@@ -1,3 +1,4 @@
+# tag:A365 verification - Mocked calendar schedules, available slots and approved invitation creation.
 import asyncio
 import json
 from dataclasses import replace

@@ -5970,3 +5970,366 @@ connection strings, or sensitive portfolio content.
   publishing it does not itself provision tenant objects. Publish this
   completion record in a follow-up documentation commit, without amending
   the implementation commit.
+
+## 2026-10-22 17:15 EDT - Verify read-only access to the existing blueprint
+
+- **Status:** Succeeded
+- **Scope:** Tenant | Workstation
+- **Requested by:** User
+- **Purpose:** Confirm current inspection access rather than relying only on
+  historical provisioning or successful runtime calendar calls.
+- **Change:** Read CLI help, then ran
+  `a365 query-entra blueprint-scopes --agent-name trading-platform-agent --tenant-id 00648bab-6c91-4292-9a2a-2297df511222`.
+  This is a read-only Microsoft Graph query, not setup or consent.
+- **Result:** The CLI used the existing administrative user authentication
+  context in the expected tenant, resolved blueprint
+  341ff526-fa67-4487-a028-5d61dd6e5a92 and successfully read its principal's
+  grants. The blueprint principal has one Microsoft Graph application
+  permission, AgentIdentity.CreateAsManager, and zero delegated permissions.
+  The root generated-config absence warning did not prevent explicit
+  tenant/name resolution, and no generated configuration was created.
+- **Validation:** CLI exit code 0 and successful live grant enumeration.
+  This confirms read access, not authorization for every administrative
+  mutation. Child-agent calendar grants were not re-enumerated by this query.
+  No credentials, tokens or sign-in codes were printed or recorded.
+- **Rollback:** Not applicable; no tenant objects, permissions, names,
+  endpoints or runtime services were changed.
+- **Follow-up:** Any rename or permission change still requires a separately
+  approved action and verification. Runtime calendar access and blueprint
+  administrative access remain distinct.
+
+## 2026-10-23 16:53 EDT - Document the purpose of each portfolio API endpoint
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make each endpoint's responsibility clear, especially why
+  calendar approval routes are separate from model-driven chat.
+- **Change:** Add concise purpose comments above all 18 route declarations
+  in lob/wealth/portfolio-manager/api/main.py. Leave handler logic, routes,
+  schemas, authentication and existing documentation strings unchanged.
+- **Result:** All 18 endpoints now have a concise purpose comment, including
+  the separate calendar approval boundary, read-only reporting and the
+  distinction between ledger insertion and brokerage execution.
+- **Validation:** Python parsing succeeded; all 18 route decorators have
+  an immediately preceding purpose comment. Before/after AST hashes are
+  identical, including existing docstrings, proving no executable changes.
+  Patch whitespace checks passed. No unit tests were run for comments alone.
+- **Rollback:** Remove only these purpose comments.
+- **Follow-up:** No service restart, tenant change or live API call is needed.
+
+## 2026-10-23 16:58 EDT - Add searchable Agent 365 feature markers
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Locate Agent 365 integration features using consistent,
+  categorized source comments rather than tagging every statement.
+- **Change:** Add tag:A365 comments at Portfolio Manager telemetry,
+  identity, Graph, approval, configuration and verification boundaries.
+  Include related regression tests and an index in the existing app README.
+  Scope excludes other applications, ignored credentials and generated evidence.
+- **Result:** Added 81 categorized markers across 22 source, configuration
+  and regression-test files, plus a linked six-category search index in the
+  existing app README. Distinguished app-specific Graph/approval features
+  from Agent 365 SDK functionality. Preserved existing endpoint purpose
+  comments and the user's chat comment. No executable changes were made.
+- **Validation:** All 41 tracked Python/configuration baseline hashes matched
+  the pre-edit worktree: Python ASTs including docstrings and non-comment
+  configuration/dependency values are unchanged. All markers use the agreed
+  format and six categories; all categories appear in the README index.
+  All 18 endpoint purpose comments remain immediately above their routes.
+  Scoped whitespace checks passed. No unit tests or live harness were run
+  because these are comments/documentation-only changes.
+- **Rollback:** Remove only the feature-marker comments and README index
+  added by this action.
+- **Follow-up:** No dependency installation, service restart, tenant action,
+  verification-harness execution or live Graph call is required.
+
+## 2026-10-23 17:09 EDT - Inspect automatic span instrumentation
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Determine whether model/tool instrumentation is automatic
+  in addition to the explicitly created InvokeAgent scope.
+- **Change:** Read-only inspection of application initialization and the
+  installed microsoft-opentelemetry 1.3.9 discovery/instrumentor code.
+  Queried package metadata without initializing instrumentation or services.
+- **Result:** The installed agent_framework entry point is eligible under
+  the SDK's actual dependency-discovery check. Its instrumentor calls
+  agent_framework.observability.enable_instrumentation(), enabling the
+  framework's built-in span generation. The app disables openai_agents,
+  a different integration, not agent_framework. In A365-only mode the SDK
+  defaults several HTTP/web/database instrumentations off. Application
+  initialization remains gated by ENABLE_A365_OBSERVABILITY.
+- **Validation:** Confirmed the installed entry point, dependency check
+  result of None, and framework instrumentation function. An initial
+  metadata probe used an unsupported extra argument; corrected it using
+  the SDK's exact discovery call. No telemetry pipeline was started and
+  no new exported spans or running-service state were verified.
+- **Rollback:** Not applicable; discovery only, apart from this audit entry.
+- **Follow-up:** Distinguish configured automatic instrumentation from
+  live export evidence. No dependency or runtime changes were made.
+
+## 2026-10-23 17:12 EDT - Document manual and automatic telemetry spans
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Replace an implicit SDK assumption with a discoverable
+  explanation of what creates spans, when it runs and what remains unverified.
+- **Change:** Expand the existing Portfolio Manager README with the
+  initialization chain, manual/automatic coverage, SDK evidence, content
+  controls and runtime-verification limits. Add an adjacent configuration
+  comment explaining openai_agents versus agent_framework.
+- **Result:** Added the README subsection "Spans and automatic instrumentation"
+  under the feature index, covering the initialization chain, explicit versus
+  SDK-created spans, separate OpenAI Agents SDK setting, content controls,
+  HTTP/database exclusions and configured-versus-live evidence. Added a
+  searchable comment adjacent to instrumentation_options; behavior is unchanged.
+- **Validation:** Explanation matches inspected SDK 1.3.9 discovery/defaults
+  and framework span-generation code. The source AST hash including docstrings
+  is unchanged, new section links resolve and scoped whitespace checks passed.
+  No unit tests were needed for comments/documentation alone.
+- **Rollback:** Remove only this README section and the new source comment.
+- **Follow-up:** Do not activate telemetry, restart services or execute live
+  verification merely to document the configured mechanism.
+
+## 2026-10-23 17:50 EDT - Write the Jira-to-IT-to-developer onboarding flow
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Document the missing end-to-end ownership, blueprint decision,
+  artifact exchange, implementation and acceptance flow for an externally
+  hosted agent, rather than another disconnected CLI reference.
+- **Change:** Populate the user's empty A365/it_to_developer_flow.md and link
+  it from existing onboarding entry points. Scenario: customer-managed
+  on-premises/non-Azure hosting, own UI/API, no Teams/M365 publication.
+  IT owns blueprint/identity creation, credentials, permissions and governance.
+- **Result:** Populated the user's guide with Jira states/ownership, intake,
+  capability contract, blueprint reuse/create framework, separate CLI-new and
+  official PowerShell-existing paths, credential custody, artifact retention/
+  handoff, developer runtime steps, control-owner work, acceptance and recovery.
+  Linked it from the A365 index and onboarding guide. Distinguished registry
+  metadata, Entra manifests, M365 packages, tooling manifests and runtime
+  configuration; no registry export was presented as a credential.
+  Used installed CLI 1.1.226 help and official guidance/scripts at
+  4fd85ec798a096d5b5c2c2591fd301dea27c8098.
+- **Validation:** All 16 PowerShell examples parsed without execution.
+  Handoff JSON parsed and retained secret-reference/content-off safeguards.
+  All 84 local links/anchors across the three documents resolved, including
+  the navigation. Whitespace checks passed, including the untracked guide.
+  Command flags and CSV anchor/schema behavior match inspected help/source.
+  Required gates distinguish registration, export, ingestion, detection and
+  actual inline-DLP enforcement. No application changes, installs, tenant
+  mutations, live harness calls or service restarts were performed.
+- **Rollback:** Remove only this guide's content and its new cross-links.
+  Preserve all pre-existing worktree changes.
+- **Follow-up:** No tenant, permission, credential, deployment, installation,
+  policy or running-service operations are authorized by this documentation.
+
+## 2026-10-23 18:59 EDT - Clarify CLI and existing-blueprint creation options
+
+- **Status:** Succeeded
+- **Scope:** Workstation | Repository
+- **Requested by:** User
+- **Purpose:** Distinguish Azure CLI from Agent 365 CLI and avoid implying
+  PowerShell is the only way to create an identity under an existing blueprint.
+- **Change:** Read-only inspection of installed az ad and a365 setup all help,
+  plus current Microsoft Entra identity-creation and authentication guidance.
+- **Result:** Installed Azure CLI ad help has no dedicated agent-identity/
+  blueprint-assignment command. Agent 365 CLI 1.1.226 setup help has no
+  explicit existing-blueprint-ID switch. Neither fact removes the supported
+  Graph API or Entra admin-center creation paths. Microsoft's portal procedure
+  selects an existing blueprint in New agent identity (Preview). Standard
+  Azure CLI user tokens are explicitly unsupported by the Agent ID APIs;
+  generic HTTP transport must not be confused with supported authentication.
+  Creation under a selected blueprint and runtime binding remain distinct
+  from Agent 365 registry registration.
+- **Validation:** Read installed help and official create-delete-agent-identities
+  and agent-id-ai-guided-setup guidance. No creation/assignment, login, consent,
+  credential or service operation was run.
+- **Rollback:** Not applicable; discovery only, apart from this audit entry.
+- **Follow-up:** The PowerShell route in the handoff guide is a documented
+  automation choice, not a claim that the portal or direct Graph is unavailable.
+
+## 2026-10-23 19:08 EDT - Correct the CLI existing-blueprint capability explanation
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Provide a definitive Graph-versus-Agent-365-CLI capability
+  matrix and correct the prior misleading inference from a missing flag.
+- **Change:** Inspect the actual CLI source matching installed version
+  1.1.226+9b233a7c52, then correct the IT-to-developer guide's reuse section.
+- **Result:** Source revision 9b233a7c5288a78fe7ef106c7578adbd408e914d
+  confirms blueprint lookup/reuse and separate child identity creation
+  during setup all. The missing existing-blueprint-ID switch does not mean
+  the CLI cannot create a child under an existing blueprint.
+  This corrects the implication of the earlier explanations and guide.
+  Updated the guide with the capability matrix, configuration/state/credential
+  conditions and immutable source links; retained PowerShell as an alternative.
+- **Validation:** Inspected actual blueprint display-name lookup/reuse and
+  independent child lookup/create execution branches, including the required
+  blueprint secret. Verified guide correction/reference definitions and
+  whitespace. Removed the three temporary public-source inspection files.
+  No provisioning, permission change or live tenant test was run.
+- **Rollback:** Remove only this correction's guide additions; retain this
+  labeled audit correction and prior chronological records.
+- **Follow-up:** Explain configuration/state/credential requirements and
+  the broader permission/registration effects of full setup.
+
+## 2026-10-23 19:17 EDT - Rewrite the IT handoff as an exact operator runbook
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Replace verbose onboarding prose with concise, verified command
+  examples showing actor, purpose, parameters/body, object changes and outcomes.
+- **Change:** Verify installed Agent 365 CLI 1.1.226+9b233a7c52 help and matching
+  public source; rewrite `A365/it_to_developer_flow.md`. Use explicit Graph
+  alternatives only where the CLI has no equivalent operation.
+- **Result:** Replaced the 6,348-word guide with a 3,047-word command runbook
+  (52.0% shorter). Added actor/purpose/outcome examples for catalog search,
+  new-family/blueprint-only setup, configured reuse, family and child-specific
+  permissions, read-back, registration repair and runtime handoff.
+  Included nine configuration/HTTP bodies and documented exact-version
+  effects: multitenant creation, two-year credential request, default Graph/
+  Power Platform specs, wildcard inheritance, possible custom-grant removal
+  and the CLI child-query appId/object-ID distinction.
+  No tenant provisioning, consent, credential creation, runtime restart,
+  dependency installation or application-code change was performed.
+- **Validation:** All 14 PowerShell blocks parse. Checked 13 CLI command
+  examples against installed help and 13 Graph cmdlet calls against existing
+  Microsoft.Graph.Authentication 2.41.1 parameter metadata. Parsed nine JSON/
+  HTTP bodies, checked configuration property names and exact inheritance
+  discriminators against source, and verified local links/anchors and whitespace.
+  Six offline Graph-fixture scenarios passed: delegated create, paginated
+  scope-preserving update, duplicate-grant rejection, application-role create,
+  paginated existing-assignment reuse and missing-role rejection.
+  One upstream helper-path 404 was corrected through tree lookup; an initial
+  validator misclassified HTTP bodies as CLI configuration and was corrected.
+  The guide explicitly distinguishes source/syntax validation from live testing.
+  Removed 11 temporary upstream-source files; retained the pre-edit backup.
+- **Rollback:** Restore this guide from the session folder's
+  `files/it-to-developer-before-1917.txt`; preserve all unrelated worktree
+  edits and this audit history.
+- **Follow-up:** IT must replace placeholders, approve defaults and resource
+  access, provide organization-specific secret injection and run the approved
+  procedures in the target tenant. Examples are not claims of deployed state.
+
+## 2026-10-23 19:41 EDT - Simplify onboarding to one Agent 365 CLI workflow
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Remove the burden of switching between CLI, Graph PowerShell
+  and raw HTTP while preserving exact commands and documented side effects.
+- **Change:** Simplify `A365/it_to_developer_flow.md` to one config-driven
+  A365 CLI workflow for new or reused blueprints. Use portals for selection/
+  verification; remove manual Graph commands and HTTP payloads. Label
+  unsupported CLI operations as exceptions, not parallel onboarding paths.
+- **Result:** Replaced separate new/reuse/API paths with one configured CLI
+  flow: portal selection, one config, preview, approved apply, optional CLI
+  permissions, verification and developer handoff. Removed all manual Graph
+  PowerShell, raw HTTP bodies and Graph client/session setup. Reduced the
+  guide from 605 lines/3,047 words to 303 lines/1,793 words (41.2% fewer words).
+  Azure CLI is limited to prerequisite login; PowerShell is terminal syntax.
+  Preserved shared-family/credential/default-permission safeguards and
+  explicitly routed child-only grants/app-role exceptions to IAM.
+  No tenant changes, consent, deployments, package installations, application
+  changes or runtime commands were performed.
+- **Validation:** Ten A365 command examples, including table entries, checked
+  against installed help. All terminal examples parse. Three CLI JSON input
+  examples parse; local links/anchors, whitespace and key safety conditions
+  pass. Verified absence of Graph PowerShell cmdlets, manual Graph URLs and
+  HTTP request blocks. Validation executed help/static checks only.
+- **Rollback:** Restore the guide from the session folder's
+  `files/it-to-developer-before-1941.txt`; retain prior audit entries and
+  unrelated worktree changes.
+- **Follow-up:** IT replaces placeholders, approves the documented defaults,
+  supplies secure credential injection and runs the approved CLI procedure.
+  Required capabilities outside this CLI flow remain open IAM/control tasks.
+
+## 2026-10-23 19:53 EDT - Clarify missing-blueprint and configuration-file steps
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Explain what IT does when no suitable blueprint exists and
+  exactly who creates the CLI configuration, from what source and where.
+- **Change:** Clarify steps 1, 3 and 4 of `A365/it_to_developer_flow.md`:
+  approve a new name when necessary; IT authors the input from the supplied
+  template; full setup creates the missing family and later objects.
+  Distinguish IT-authored configuration from CLI-generated protected state.
+- **Result:** Step 1 explicitly instructs IT to approve a new unique family
+  name when no suitable blueprint exists; the normal step 4 apply creates
+  the missing blueprint/principal, then child/registration. Step 3 now says
+  IT creates the input from scratch using the supplied template, identifies
+  the exact workspace save path and each input's source, and distinguishes
+  IT-authored config from CLI-generated protected state. New-family inputs
+  omit existing IDs; retries retain their original config/state. Step 4
+  explicitly reads the file from that workspace.
+  Documentation only; no tenant, dependency, runtime or application changes.
+- **Validation:** Three JSON examples parse; the new-family example needs no
+  existing blueprint IDs. Verified required origin/path/input-output/retry
+  instructions, local links/anchors, references, whitespace and continued
+  absence of manual Graph commands/HTTP examples. No provisioning commands
+  or tenant operations were executed.
+- **Rollback:** Remove only these clarification paragraphs/table edits;
+  preserve all prior guide changes and audit history.
+- **Follow-up:** None beyond the existing approval and validation gates.
+
+## 2026-10-23 19:56 EDT - Document folders, artifact locations and retention
+
+- **Status:** Succeeded
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Make the operator's folder layout, creation responsibilities,
+  output destinations and post-onboarding storage explicit.
+- **Change:** Add local folder commands/tree and distinguish IT input,
+  generated state, manual evidence/handoff, CLI diagnostics, tenant objects
+  and the existing application/runtime location in the handoff guide.
+- **Result:** Added three explicit local folder operations and the expected
+  request-folder tree, labeling IT-created inputs/manual evidence/handoff
+  separately from generated CLI state. Documented the default Windows CLI
+  log directory and an optional redacted export destination. Expanded the
+  post-onboarding artifact table and retention/backup guidance; distinguished
+  local state from Entra/registry objects and the existing application folder.
+  No folders, exports, credentials or tenant objects were created for the
+  customer procedure; no runtime/application changes were made.
+- **Validation:** Twelve A365 command examples checked against installed
+  help; three folder-operation examples parse and match built-in cmdlet
+  parameter metadata. Three JSON examples, exact folder/log/export paths,
+  artifact ownership/timing, local-versus-cloud storage, retention/runtime
+  safeguards, links/anchors and whitespace pass. An initial path-check script
+  had a trailing-backslash string syntax error; corrected the validator and
+  reran successfully. Only help/static checks ran, not procedure examples.
+- **Rollback:** Remove only these folder/storage clarification edits;
+  preserve prior guide changes, unrelated worktree edits and audit history.
+- **Follow-up:** Keep generated state with IT and distribute only sanitized
+  handoff material and independently secured credential access.
+
+## 2026-10-25 11:15 EDT - Publish Agent 365 documentation and integration comments
+
+- **Status:** Planned
+- **Scope:** Repository | Workstation
+- **Requested by:** User
+- **Purpose:** Commit and push the completed IT-to-developer runbook,
+  instrumentation documentation, API purpose comments and searchable A365 tags.
+- **Change:** Publish the 27 expected documentation/comment files on `main`
+  to `drewelewis/ai-hybrid-data-sources`, preserving existing user comments.
+  Include the required Copilot co-author trailer and publish the validated
+  outcome as a follow-up audit commit; do not amend or force-push.
+- **Result:** Pending. Initial checks confirm 19 changed Python files retain
+  identical executable/docstring ASTs and three configuration/dependency files
+  retain identical non-comment content. No sensitive/generated files are staged.
+- **Validation:** Check the explicit change set, documentation examples/links,
+  added secret patterns, ignored-state exclusions and whitespace; verify the
+  resulting commits on GitHub and local/upstream synchronization.
+- **Rollback:** Any rollback requires a separately approved follow-up revert
+  of published content while retaining audit history; no history rewriting.
+- **Follow-up:** Record the actual commit/push outcome and leave the worktree
+  clean after the audit record is published.

@@ -15,6 +15,7 @@ agent-dev-cli==0.0.1b260128
 # Azure authentication
 azure-identity
 PyJWT[crypto]
+# tag:A365 telemetry - Pinned Microsoft OpenTelemetry integration supplying Agent 365 export and scopes.
 microsoft-opentelemetry==1.3.9
 
 # GitHub integration
@@ -35,4 +36,3 @@ aiohttp
 
 # Terminal colors
 colorama
-

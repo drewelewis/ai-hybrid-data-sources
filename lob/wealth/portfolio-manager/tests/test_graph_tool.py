@@ -1,3 +1,4 @@
+# tag:A365 verification - Thin Graph adapter contracts and exclusion of confirmation from model tools.
 import json
 from unittest.mock import AsyncMock, Mock
 

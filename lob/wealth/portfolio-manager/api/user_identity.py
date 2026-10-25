@@ -57,6 +57,7 @@ def _audiences_from_scope(token_scope: str) -> list[str]:
     return audiences
 
 
+# tag:A365 identity - Shared human-token validation for caller attribution and Graph's incoming API scope.
 class EntraUserTokenValidator:
     def __init__(
         self, tenant_id: str, token_scope: str, *, required_scope: str | None = None

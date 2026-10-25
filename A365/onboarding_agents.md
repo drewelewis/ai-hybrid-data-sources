@@ -31,6 +31,9 @@ remains in the [observability reference](./observability_reference.md). The
 concrete application bootstrap, authentication, request, span, and shutdown
 path is documented in the
 [LOB application wiring guide](./lob_app_wiring.md).
+For the end-to-end human process when IT owns identity and permissions, use
+the [IT-to-developer flow](./it_to_developer_flow.md): Jira intake, blueprint
+selection, execution ownership, artifact exchange and joint acceptance.
 
 ## 1. Select the Microsoft integration path
 

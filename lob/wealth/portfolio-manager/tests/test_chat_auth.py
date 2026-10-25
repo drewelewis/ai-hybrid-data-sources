@@ -1,3 +1,4 @@
+# tag:A365 verification - Blueprint-audience CLI authentication and separate model/Graph token headers.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 

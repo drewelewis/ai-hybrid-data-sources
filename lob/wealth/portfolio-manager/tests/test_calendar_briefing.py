@@ -1,3 +1,4 @@
+# tag:A365 verification - Mocked briefing previews, caller-bound approval, stale-event rejection and saving.
 import asyncio
 import json
 from dataclasses import replace

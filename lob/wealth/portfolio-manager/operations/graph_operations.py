@@ -44,6 +44,7 @@ def _utc_offset(value: str) -> timezone:
     return timezone(-offset if value[0] == "-" else offset)
 
 
+# tag:A365 config - Gate Graph reads/writes and validate the shared blueprint and child-agent settings.
 @dataclass(frozen=True)
 class GraphCalendarSettings:
     tenant_id: str
@@ -137,6 +138,7 @@ def _access_token(payload: dict[str, Any], operation: str) -> str:
     return token
 
 
+# tag:A365 approval - Freeze the briefing preview and original event snapshot for later confirmation.
 @dataclass(frozen=True)
 class CalendarBriefingProposal:
     proposal_id: str
@@ -165,6 +167,7 @@ class CalendarBriefingProposal:
         }
 
 
+# tag:A365 approval - Freeze the invitation preview and use its proposal ID as the Graph transaction ID.
 @dataclass(frozen=True)
 class CalendarMeetingProposal:
     proposal_id: str
@@ -295,6 +298,7 @@ def _body_text(body: dict[str, str]) -> str:
     return " ".join(content.split())
 
 
+# tag:A365 graph - Keep delegated Graph access and proposal state local to one validated caller request.
 class GraphOperations:
     """Request-scoped Graph access on behalf of one validated user."""
 
@@ -307,6 +311,7 @@ class GraphOperations:
         self.pending_meeting: CalendarMeetingProposal | None = None
         self._review_event_ids: dict[str, list[str]] = {}
 
+    # tag:A365 identity - Exchange the blueprint credential and user assertion for child-agent Graph OBO.
     async def _graph_token(self, session: aiohttp.ClientSession) -> str:
         token_url = (
             f"https://login.microsoftonline.com/{self.settings.tenant_id}/oauth2/v2.0/token"
@@ -335,6 +340,7 @@ class GraphOperations:
         )
         return _access_token(delegated, "Agent ID user exchange")
 
+    # tag:A365 graph - Link marked calendar reviews to exact ledger accounts without granting account access.
     async def get_portfolio_review_meetings(
         self,
         review_date: str = "",
@@ -374,6 +380,7 @@ class GraphOperations:
             "count": len(meetings), "meetings": meetings,
         }
 
+    # tag:A365 graph - Read bounded calendar pages; reject unsafe links and incomplete results.
     async def _calendar_events(
         self, start: datetime, end: datetime, fields: str,
     ) -> list[dict[str, Any]]:
@@ -426,6 +433,7 @@ class GraphOperations:
                 )
         return collected
 
+    # tag:A365 graph - Read the whole primary-calendar schedule while redacting private event subjects.
     async def get_calendar_schedule(
         self,
         start_date: str = "",
@@ -465,6 +473,7 @@ class GraphOperations:
             "time_zone": SCHEDULING_ZONE.key, "count": len(result), "events": result,
         }
 
+    # tag:A365 graph - Find organizer-only weekday openings using DST-aware Eastern working hours.
     async def find_available_slots(
         self,
         start_date: str = "",
@@ -517,6 +526,7 @@ class GraphOperations:
             "slots": slots[:50], "more_slots_available": len(slots) > 50,
         }
 
+    # tag:A365 graph - Recheck organizer conflicts before proposing or creating an invitation.
     async def _ensure_available(self, start: datetime, end: datetime) -> None:
         events = await self._calendar_events(start, end, "id,subject,start,end,isCancelled")
         for event in events:
@@ -526,6 +536,7 @@ class GraphOperations:
             if event_start < end and event_end > start:
                 raise GraphCalendarError("The selected time overlaps an existing event; choose another slot.")
 
+    # tag:A365 approval - Stage explicit recipients, times and body without creating or sending an event.
     async def prepare_customer_meeting(
         self,
         subject: str,
@@ -574,6 +585,7 @@ class GraphOperations:
         )
         return self.pending_meeting.preview()
 
+    # tag:A365 approval - After API approval, recheck availability, create once and verify the saved event.
     async def confirm_meeting(self, proposal: CalendarMeetingProposal) -> dict[str, str]:
         """API-only create after authenticated approval; never register as a model tool."""
         if not self.settings.write_enabled:
@@ -686,6 +698,7 @@ class GraphOperations:
             if not isinstance(address, dict) or not isinstance(address.get("address"), str):
                 raise GraphCalendarError("The review organizer or attendee address is invalid.")
 
+    # tag:A365 approval - Stage an append-only briefing while preserving the existing meeting content.
     async def prepare_portfolio_review_briefing(
         self,
         review_date: str,
@@ -743,6 +756,7 @@ class GraphOperations:
         )
         return self.pending_briefing.preview()
 
+    # tag:A365 approval - After API approval, reject changed meetings, PATCH with an ETag and verify read-back.
     async def confirm_briefing(self, proposal: CalendarBriefingProposal) -> dict[str, str]:
         """API-only operation. Never register this function as a model tool."""
         if not self.settings.write_enabled:

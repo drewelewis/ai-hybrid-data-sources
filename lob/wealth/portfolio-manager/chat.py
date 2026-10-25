@@ -182,6 +182,7 @@ async def show_status(http: aiohttp.ClientSession) -> None:
     print_message(f"  Database : {health.get('database', 'unknown')}\n", Fore.CYAN)
 
 
+# tag:A365 approval - Preview the exact Graph write and require SAVE/SEND plus its proposal ID outside chat.
 async def review_calendar_update(
     http: aiohttp.ClientSession, session_id: str, proposal: dict[str, Any],
 ) -> None:
@@ -276,6 +277,7 @@ async def get_model_access_token() -> str | None:
     return token.token
 
 
+# tag:A365 identity - Acquire a blueprint-audience user token for Graph OBO, separate from the model token.
 async def get_agent_access_token() -> str | None:
     global _device_code_credential
     if not calendar_enabled():
@@ -310,6 +312,7 @@ async def refresh_model_access_token(http: aiohttp.ClientSession) -> None:
     access_token = await get_model_access_token()
     if access_token:
         http.headers["Authorization"] = f"Bearer {access_token}"
+    # tag:A365 identity - Carry the Graph caller token in its own header; never substitute the model token.
     agent_token = await get_agent_access_token()
     if agent_token:
         http.headers["X-Agent-Authorization"] = f"Bearer {agent_token}"
@@ -400,6 +403,8 @@ async def main() -> None:
                 continue
 
             print_message("\nAgent: ", Fore.GREEN + Style.BRIGHT, end="", flush=True)
+
+            # Refresh the model access token and send the user's message to the chat endpoint
             try:
                 await refresh_model_access_token(http)
                 response = await request_json(
@@ -409,6 +414,7 @@ async def main() -> None:
                     {"session_id": session_id, "message": user_input},
                 )
                 print_message(response.get("response") or "(no response)", Fore.GREEN)
+                # tag:A365 approval - Route staged calendar writes to the human preview, not another model turn.
                 if response.get("calendar_update") is not None:
                     await review_calendar_update(http, session_id, response["calendar_update"])
             except ApiClientError as error:

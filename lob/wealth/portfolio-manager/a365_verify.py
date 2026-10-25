@@ -123,6 +123,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
 
 
+# tag:A365 verification - Build the repeatable synthetic conversation and policy-probe scenarios.
 def build_scenarios(
     marker: str,
     round_number: int,
@@ -215,6 +216,7 @@ def build_scenarios(
     return plans[rng.randrange(len(plans))]
 
 
+# tag:A365 verification - Define synthetic policy probes; these do not establish Defender detection.
 def build_exploit_pool(
     marker: str,
     include_policy_scenarios: bool,
@@ -655,6 +657,7 @@ def extract_resource_application_id(scope: str | None) -> str | None:
         return None
 
 
+# tag:A365 verification - Require ready telemetry and the approved content/APIM profile before testing.
 def validate_health(
     health: dict[str, Any],
     include_policy_scenarios: bool,
@@ -721,6 +724,7 @@ def observe_adversarial_response(scenario: Scenario, response: str) -> str | Non
     return "response_received_unassessed"
 
 
+# tag:A365 verification - Send correlated test turns through the normal authenticated chat path.
 async def run_round(
     http: aiohttp.ClientSession,
     marker: str,
@@ -856,6 +860,7 @@ async def run_round(
     return results, continue_run
 
 
+# tag:A365 verification - Generate a time-bounded Defender query for the configured child-agent identity.
 def build_defender_query(
     agent_id: str,
     started_at: datetime,
@@ -896,6 +901,7 @@ CloudAppEvents
 '''
 
 
+# tag:A365 verification - Join APIM safety observations to test-turn UUIDs; missing rows are not clean passes.
 def build_apim_query(
     interactions: Sequence[InteractionResult],
     started_at: datetime,
@@ -953,6 +959,7 @@ datatable(VerificationId:string, Scenario:string, Round:int, Pass:int, Turn:int)
 '''
 
 
+# tag:A365 verification - Separate local test observations from unverified downstream governance evidence.
 def build_report(
     *,
     marker: str,
@@ -1124,6 +1131,7 @@ def build_report(
     }
 
 
+# tag:A365 verification - Persist sanitized run metadata and investigation queries, not access tokens.
 def write_evidence(
     output_dir: Path,
     marker: str,
@@ -1144,11 +1152,13 @@ def write_evidence(
     return report_path, query_path
 
 
+# tag:A365 verification - Open Entra, Purview and Defender for manual evidence inspection.
 def open_verification_portals() -> None:
     for url in PORTAL_URLS.values():
         webbrowser.open_new_tab(url)
 
 
+# tag:A365 verification - Orchestrate the opt-in live harness; ordinary offline tests do not invoke it.
 async def run_verification(args: argparse.Namespace) -> int:
     if chat.AUTH_MODE != "device-code":
         raise VerificationConfigurationError(

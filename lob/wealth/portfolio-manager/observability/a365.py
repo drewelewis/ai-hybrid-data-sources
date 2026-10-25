@@ -57,6 +57,7 @@ def _required_uuid(environment: Mapping[str, str], name: str) -> str:
     return value
 
 
+# tag:A365 telemetry - Enable opt-in exporter diagnostics without duplicating log handlers.
 def _configure_export_diagnostics(
     environment: Mapping[str, str],
 ) -> None:
@@ -79,6 +80,7 @@ def _configure_export_diagnostics(
     exporter_logger.propagate = False
 
 
+# tag:A365 config - Validate observability identity, export settings and the content-recording opt-in.
 @dataclass(frozen=True)
 class A365Settings:
     enabled: bool
@@ -179,6 +181,7 @@ def _decode_claims(token: str) -> dict[str, object]:
         ) from error
 
 
+# tag:A365 identity - Cache telemetry tokens for the configured child agent, not the interactive user.
 class A365Runtime:
     def __init__(self, settings: A365Settings):
         self.settings = settings
@@ -220,6 +223,7 @@ class A365Runtime:
             self._last_error = None
             return True
 
+    # tag:A365 identity - Refresh telemetry credentials in the background; stop the task on shutdown.
     async def start_token_refresh(self) -> bool:
         ready = await self.ensure_token()
         if (
@@ -249,6 +253,7 @@ class A365Runtime:
             await asyncio.sleep(delay)
             await self.ensure_token()
 
+    # tag:A365 identity - Exchange the blueprint credential through fmi_path for an app-only telemetry token.
     async def _acquire_token(self) -> tuple[str, int]:
         token_url = (
             "https://login.microsoftonline.com/"
@@ -346,6 +351,7 @@ class A365Runtime:
                 "Agent ID token endpoint request failed."
             ) from error
 
+    # tag:A365 telemetry - Attach agent, validated caller and hashed conversation context to InvokeAgent spans.
     @contextmanager
     def invoke_scope(
         self,
@@ -375,6 +381,7 @@ class A365Runtime:
         )
 
         conversation_id = _hash_conversation_id(session_id)
+        # tag:A365 telemetry - Prompt content is included only with the explicit content-recording opt-in.
         request = Request(
             content=input_message if self.settings.record_content else None,
             session_id=conversation_id,
@@ -489,10 +496,12 @@ _runtime = A365Runtime(A365Settings(enabled=False))
 _initialized = False
 
 
+# tag:A365 telemetry - Correlate conversations without exporting raw session IDs.
 def _hash_conversation_id(session_id: str) -> str:
     return hashlib.sha256(session_id.encode("utf-8")).hexdigest()
 
 
+# tag:A365 telemetry - Initialize the feature-gated S2S exporter with offline storage disabled.
 def initialize_a365_observability(
     environment: Mapping[str, str],
 ) -> A365Runtime:
@@ -516,6 +525,7 @@ def initialize_a365_observability(
                 "service.version": settings.service_version,
             }
         ),
+        # tag:A365 telemetry - Disable OpenAI Agents SDK tracing, not Agent Framework's default auto-instrumentation.
         instrumentation_options={"openai_agents": {"enabled": False}},
         enable_a365=True,
         a365_token_resolver=_runtime.resolve_token,
@@ -563,6 +573,7 @@ def a365_invoke_scope(
     )
 
 
+# tag:A365 telemetry - Record response content only when the separate content-recording flag permits it.
 def record_a365_response(scope: object | None, response: str) -> None:
     if (
         scope is not None
@@ -572,10 +583,12 @@ def record_a365_response(scope: object | None, response: str) -> None:
         scope.record_response(response)
 
 
+# tag:A365 telemetry - Expose exporter authentication readiness without returning credentials.
 def get_a365_status() -> dict[str, object]:
     return _runtime.status()
 
 
+# tag:A365 telemetry - Flush queued spans during graceful shutdown and report timeout failures.
 def flush_a365_telemetry() -> None:
     if not _runtime.settings.enabled:
         return

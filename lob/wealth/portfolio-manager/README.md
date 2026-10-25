@@ -7,6 +7,8 @@ operational planning is documented in
 [A365/readme.md](../../../A365/readme.md). Developers implementing or reviewing
 the integration should start with the
 [Agent 365 developer guide](../../../A365/developers_guide.md).
+For code locations in this application, see
+[Finding Agent 365 integration code](#finding-agent-365-integration-code).
 
 ---
 
@@ -287,6 +289,91 @@ blueprint client secret in the git-ignored `.env` as
 `A365_BLUEPRINT_CLIENT_SECRET`; never add it to `env.sample`. The integration
 uses an app-only two-step Agent ID exchange and does not reuse the interactive
 APIM user token. Prompt and response recording remains disabled.
+
+### Finding Agent 365 integration code
+
+Search for literal `tag:A365` using VS Code **Ctrl+Shift+F**, or from the
+repository root in PowerShell:
+
+```powershell
+rg -n -F "tag:A365" .\lob\wealth\portfolio-manager
+```
+
+Markers use `# tag:A365 <category> - <purpose>` at feature boundaries, not
+on every statement. Append a category to narrow the search, for example
+`tag:A365 telemetry`.
+
+| Category | Feature locations |
+|---|---|
+| `telemetry` | [Startup](main.py), [API invocation/shutdown](api/main.py), [exporter, spans and content gates](observability/a365.py), [SDK dependency](requirements.txt) |
+| `identity` | [Telemetry token exchange](observability/a365.py), [Graph OBO](operations/graph_operations.py), [CLI token acquisition](chat.py), [caller validation and isolation](api/main.py), [shared human-token validator](api/user_identity.py), [framework agent ID](agents/trading_platform_agent.py) |
+| `graph` | [Calendar operations](operations/graph_operations.py), [model adapters](tools/graph_tool.py), [instructions and tool registration](agents/trading_platform_agent.py) |
+| `approval` | [CLI preview and SAVE/SEND](chat.py), [API decisions](api/main.py), [proposal and write operations](operations/graph_operations.py), [model-facing limits](tools/graph_tool.py), [approval instructions](agents/trading_platform_agent.py) |
+| `config` | [Environment sample](env.sample), [container forwarding](docker-compose.yaml), [telemetry settings](observability/a365.py), [Graph settings](operations/graph_operations.py) |
+| `verification` | [Live harness and evidence queries](a365_verify.py), [API correlation field](api/main.py), [model correlation header](agents/trading_platform_agent.py), [offline regression tests](tests/) |
+
+These comments are navigation labels, not runtime settings or proof of tenant
+configuration. The Graph and approval categories cover application-specific
+demo features built on Entra Agent ID, not additional Agent 365 SDK features.
+Keep markers with the relevant code when moving it; do not tag unrelated
+model calls, ledger operations or ordinary CLI formatting as Agent 365.
+
+#### Spans and automatic instrumentation
+
+**This application uses both manual and automatic instrumentation.** A span
+describes one operation; a trace groups related spans using a shared trace ID.
+The `tag:A365` comments do not create either.
+
+The initialization chain is:
+
+```text
+python main.py
+  -> initialize_a365_observability(...)
+     -> if ENABLE_A365_OBSERVABILITY=true:
+        use_microsoft_opentelemetry(...)
+          -> discover the agent_framework instrumentor
+             -> agent_framework.observability.enable_instrumentation(...)
+                -> enable built-in agent, model-call and tool-execution spans
+```
+
+[main.py](main.py) initializes telemetry before loading the API/framework.
+Starting only `uvicorn api.main:app` bypasses that entry-point initialization.
+Observability is disabled by default.
+
+| Activity | How it is instrumented | Where to look |
+|---|---|---|
+| Outer Agent 365 invocation | Explicit `InvokeAgentScope.start(...)`, including agent/caller context and hashed conversation ID | `A365Runtime.invoke_scope` in [observability/a365.py](observability/a365.py) |
+| API invocation, response and errors | The API enters that scope around the agent run; response content is recorded only when allowed | `chat` in [api/main.py](api/main.py) |
+| Framework agent runs, model calls and tool executions | SDK-discovered Agent Framework instrumentation enables the framework's built-in span generation; no per-tool tracing wrapper is needed in application code | SDK setup in `initialize_a365_observability` in [observability/a365.py](observability/a365.py) |
+| Individual Graph HTTP requests | No application-defined HTTP spans; a framework tool span does not imply every HTTP request inside it has its own span | [Graph operations](operations/graph_operations.py) and [thin tool adapters](tools/graph_tool.py) |
+| General FastAPI, HTTP-client and database instrumentation | Not blanket-enabled: A365-only SDK defaults disable integrations including `fastapi`, `httpx`, `requests` and `psycopg2` | Defaults in the installed telemetry SDK, not individual portfolio handlers |
+
+**Why does the configuration disable `openai_agents`?** That name selects
+instrumentation for the **OpenAI Agents SDK**, not Microsoft Agent Framework.
+Our configuration leaves the separate `agent_framework` integration at the
+SDK's enabled default:
+
+```python
+instrumentation_options={"openai_agents": {"enabled": False}}
+```
+
+**Evidence and limits:** Read-only inspection of the installed, pinned
+`microsoft-opentelemetry==1.3.9` confirmed its `agent_framework` entry point,
+the successful dependency-discovery check, and the instrumentor's call to
+`agent_framework.observability.enable_instrumentation()`. The installed
+framework contains agent, model-call and tool-execution instrumentation.
+This establishes the configured activation mechanism, not successful
+activation/export in every running instance. Recheck SDK defaults and
+compatibility when upgrading dependencies.
+
+The explicit invocation scope requires a ready telemetry token.
+`A365_RECORD_CONTENT=false` keeps prompt/response content capture off by
+default; it does not disable metadata spans. A ready observability health
+status proves token readiness, not that every expected span reached Agent 365.
+To establish live coverage, correlate one approved test interaction with
+exported invocation, model and tool activity using the
+[verification workflow](#repeatable-agent-365-verification). No live
+verification was performed for this documentation update.
 
 ### Optional pilot: calendar scheduling and portfolio reviews using Microsoft Graph
 

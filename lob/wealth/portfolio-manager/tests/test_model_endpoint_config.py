@@ -94,6 +94,7 @@ def test_rejects_apim_endpoint_with_openai_path():
 
 
 @pytest.mark.asyncio
+# tag:A365 verification - Ensure test-correlation headers remain request-local on both model routes.
 @pytest.mark.parametrize("mode", ["direct", "apim"])
 async def test_verification_headers_are_request_local_and_preserve_subscription_key(monkeypatch, mode):
     from unittest.mock import Mock

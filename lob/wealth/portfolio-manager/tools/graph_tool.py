@@ -6,6 +6,7 @@ from typing import Annotated
 from operations.graph_operations import GraphOperations
 
 
+# tag:A365 graph - Expose typed reads and proposal adapters to the model, never confirmation operations.
 class PortfolioReviewCalendar:
     """Model-facing adapters; Graph behavior and caller state live in operations."""
 
@@ -52,6 +53,7 @@ class PortfolioReviewCalendar:
         result = await self.operations.find_available_slots(start_date, end_date, duration_minutes)
         return json.dumps(result)
 
+    # tag:A365 approval - Model-visible preparation only; creation remains an API-only operation.
     async def prepare_customer_meeting(
         self,
         subject: Annotated[str, "User-approved meeting subject; never infer a customer identity."],
@@ -66,6 +68,7 @@ class PortfolioReviewCalendar:
         )
         return json.dumps(result)
 
+    # tag:A365 approval - Model-visible preparation only; saving remains an API-only operation.
     async def prepare_portfolio_review_briefing(
         self,
         review_date: Annotated[str, "The exact review date, YYYY-MM-DD."],

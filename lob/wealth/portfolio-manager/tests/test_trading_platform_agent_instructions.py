@@ -26,6 +26,7 @@ def test_prompt_clarifies_ambiguous_references_and_preserves_literal_ids():
     assert "Never invent an account ID or silently select a different account" in instructions
 
 
+# tag:A365 verification - Prompt contracts distinguish human-approved creation from read-only calendar mode.
 def test_prompt_explains_creation_after_explicit_approval_not_draft_only():
     instructions = " ".join(CALENDAR_WRITE_INSTRUCTIONS.split())
     assert "I can prepare this meeting invitation" in instructions
