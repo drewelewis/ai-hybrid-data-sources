@@ -6542,7 +6542,7 @@ connection strings, or sensitive portfolio content.
 
 ## 2026-10-27 18:09 EDT - Publish onboarding discovery and permission guidance
 
-- **Status:** Planned
+- **Status:** Succeeded
 - **Scope:** Repository
 - **Requested by:** User
 - **Purpose:** Publish the pending documentation to GitHub.
@@ -6550,12 +6550,16 @@ connection strings, or sensitive portfolio content.
   to `origin/main`, preserving the existing tenant-discovery, calendar-access,
   blueprint-discovery and section-separator edits. No application, tenant,
   Azure, identity, permission or runtime changes are planned.
-- **Result:** Pending publication. Read-only Git checks show local `main`
-  matches the fetched `origin/main` at `9b16b49`.
+- **Result:** Published commit `de61bb5922616781c1cd42e6fbd3f595a25c49d7`
+  to `origin/main` with the requested documentation and planned audit entry.
+  No application, tenant, Azure or runtime operations were performed.
 - **Validation:** Reviewed the pending two-file diff; `git diff --check`
   passes. The tagged Portfolio Manager `.env` is ignored and untracked;
   no tracked `.env`, private-key or on-prem secret files were found.
-  Verify the published commit against GitHub and confirm a clean worktree.
+  GitHub's `refs/heads/main` matches the published commit, local `main`
+  matches its upstream, and the worktree is clean after the content push.
+  No build or runtime tests were needed for this documentation-only change.
 - **Rollback:** Revert the publication commits and push the revert normally;
   do not rewrite history or force-push.
-- **Follow-up:** Complete publication and update this entry with its result.
+- **Follow-up:** Publish this completion record and verify the final GitHub
+  SHA, upstream synchronization and clean worktree.
