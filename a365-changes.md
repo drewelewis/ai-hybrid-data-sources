@@ -6422,3 +6422,140 @@ connection strings, or sensitive portfolio content.
   do not amend published commits, rewrite history or force-push.
 - **Follow-up:** None for the published content. Publish this audit update
   and verify the final GitHub SHA, upstream synchronization and clean state.
+
+## 2026-10-25 18:10 EDT - Explain tenant ID discovery before configuration
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Remove the unexplained tenant GUID prerequisite and show IT
+  how to obtain and verify `tenantId` before authoring configuration.
+- **Change:** Add domain-based sign-in, the tenant ID query, example output,
+  Entra verification and failure handling to Step 2 of
+  `A365/it_to_developer_flow.md`; wire the result into Step 3's instructions
+  and parameter-source table.
+- **Result:** Step 2 now shows sign-in using the approved tenant's domain,
+  `az account show --query tenantId --output tsv`, illustrative GUID output,
+  portal verification, Jira recording and explicit failure/context handling.
+  Step 3 directs IT to use that verified result in `tenantId`. Preserved
+  the client lookup and workspace policy; no application files changed.
+- **Validation:** Installed Azure CLI help confirms login/query options;
+  Microsoft Learn confirms `--tenant` accepts an `.onmicrosoft.com` domain.
+  Tenant discovery order, example/verification/failure handling, configuration
+  provenance, earlier guidance, ten PowerShell command blocks, three JSON
+  examples, whitespace and two-file scope checks pass. No tenant sign-in,
+  tenant queries, provisioning or runtime operations were executed.
+- **Rollback:** Remove only these tenant-discovery clarifications; preserve
+  previous guide changes and audit history.
+- **Follow-up:** Documentation changes remain local and uncommitted until
+  publication is requested.
+
+## 2026-10-25 18:22 EDT - Add Graph calendar permission example before custom APIs
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Show the exact Agent 365 CLI commands for Microsoft Graph
+  calendar read access before the custom API permission example in Step 5.
+- **Change:** Add preview/apply commands for delegated `Calendars.Read`,
+  explain the Graph resource ID and consent/inheritance effects, and persist
+  the approved Graph scope alongside custom API entries in the input example.
+  Preserve the pending tenant-ID instructions and the existing custom example.
+- **Result:** Added Graph-first preview/apply examples using resource app ID
+  `00000003-0000-0000-c000-000000000000` and delegated `Calendars.Read`.
+  Documented parameters, BlueprintPrincipal consent/inheritance effects,
+  pending approval and user-delegated runtime requirements. Retained the
+  Portfolio API example and added both approved entries to the configuration
+  illustration, with Graph-only/custom-only and unique-resource safeguards.
+  Corrected the earlier declaration wording; preserved tenant discovery,
+  workspace policy and client lookup. No application or tenant changes.
+- **Validation:** Check installed help and public source at
+  `9b233a7c5288a78fe7ef106c7578adbd408e914d`, command/JSON syntax, Graph-first
+  ordering, configuration retention, permission boundaries and whitespace.
+  Source-specific correction: the batch orchestrator does not update
+  `requiredResourceAccess` on Agent Blueprints; correct Step 5's earlier
+  declaration wording rather than repeat that inaccurate object outcome.
+  Source confirms configured custom resources feed full setup alongside
+  Graph defaults, and the configuration rejects duplicate custom resource
+  IDs. Graph-first preview/apply, saved entries, approval/runtime boundaries,
+  prior guidance, twelve PowerShell blocks, three JSON examples, whitespace
+  and the two-file scope checks pass. No permission/consent commands ran.
+- **Rollback:** Remove only these Graph/example and related outcome edits;
+  preserve previous guide changes and audit history.
+- **Follow-up:** Documentation changes remain local and uncommitted until
+  publication is requested. Real permission changes require separate approval.
+
+## 2026-10-26 09:42 EDT - Add command-line blueprint discovery to Step 1
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Give IT a read-only command-line alternative to portal blueprint
+  discovery before deciding whether to reuse an existing family.
+- **Change:** Update Step 1 of `A365/it_to_developer_flow.md` with Azure CLI
+  application and BlueprintPrincipal lookups, blueprint-type verification,
+  tenant-context and failure safeguards. Explain that A365 CLI 1.1.226 has
+  no standalone blueprint search/list command. The user approved Azure CLI
+  discovery after this limitation was confirmed. Align the guide's existing
+  Azure CLI scope wording; preserve all pending documentation changes.
+- **Result:** Step 1 now includes a paginated Azure CLI name search, the
+  `agentIdentityBlueprint` type marker, application/client and object-ID
+  mapping, and a BlueprintPrincipal lookup by `appId`. Added verified-tenant,
+  read-access, ambiguous-match and missing-principal safeguards. Clarified
+  A365's lack of a standalone search command and aligned the Azure CLI scope
+  wording. Preserved the pending tenant-ID and calendar-permission edits.
+  Read-only discovery checked installed A365 CLI help and Microsoft's current
+  CLI/Graph references. Initial A365
+  help failed because the process selected the machine-wide .NET installation;
+  retrying with the existing per-user `DOTNET_ROOT` in that process succeeded
+  and reported `1.1.226+9b233a7c52`. No persistent environment changes, sign-in,
+  tenant queries, permission grants or provisioning commands were performed.
+- **Validation:** Installed A365/Azure CLI help confirms command availability
+  and options. Microsoft Graph's List applications reference confirms that
+  applications include blueprints identified by `@odata.type`. All fourteen
+  PowerShell blocks and three JSON examples parse. Step 1 command/identity,
+  tenant/failure and prior-guidance assertions pass, as does the two-file
+  whitespace check. No live tenant test or procedure commands were run.
+- **Rollback:** Remove only the new discovery instructions and related scope
+  wording; preserve earlier guide edits and this audit history.
+- **Follow-up:** Documentation changes remain local and uncommitted until
+  publication is requested. IT must validate discovery in the approved tenant.
+
+## 2026-10-26 09:45 EDT - Separate the main onboarding sections visually
+
+- **Status:** Succeeded
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Make the IT-to-developer guide less visually cramped.
+- **Change:** Add blank-line-separated Markdown horizontal rules between the
+  seven main numbered sections in `A365/it_to_developer_flow.md`.
+- **Result:** Added six Markdown horizontal rules with surrounding blank lines,
+  separating all seven numbered sections without changing their content.
+  Preserved all earlier pending documentation changes.
+- **Validation:** Confirmed seven numbered headings and a separator before
+  each of Steps 2-7. The two-file whitespace check passes. No application
+  or tenant commands were run for this formatting-only change.
+- **Rollback:** Remove only the six section separators; preserve all content
+  and this audit history.
+- **Follow-up:** Documentation changes remain local and uncommitted until
+  publication is requested.
+
+## 2026-10-27 18:09 EDT - Publish onboarding discovery and permission guidance
+
+- **Status:** Planned
+- **Scope:** Repository
+- **Requested by:** User
+- **Purpose:** Publish the pending documentation to GitHub.
+- **Change:** Commit and push `A365/it_to_developer_flow.md` and this ledger
+  to `origin/main`, preserving the existing tenant-discovery, calendar-access,
+  blueprint-discovery and section-separator edits. No application, tenant,
+  Azure, identity, permission or runtime changes are planned.
+- **Result:** Pending publication. Read-only Git checks show local `main`
+  matches the fetched `origin/main` at `9b16b49`.
+- **Validation:** Reviewed the pending two-file diff; `git diff --check`
+  passes. The tagged Portfolio Manager `.env` is ignored and untracked;
+  no tracked `.env`, private-key or on-prem secret files were found.
+  Verify the published commit against GitHub and confirm a clean worktree.
+- **Rollback:** Revert the publication commits and push the revert normally;
+  do not rewrite history or force-push.
+- **Follow-up:** Complete publication and update this entry with its result.

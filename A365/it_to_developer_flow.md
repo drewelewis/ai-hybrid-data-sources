@@ -2,6 +2,7 @@
 
 **One provisioning tool: Agent 365 CLI.** Use the Entra portal to select/
 verify identities and Microsoft 365 admin center to verify registration.
+Azure CLI is used only for sign-in and read-only discovery, not provisioning.
 There are no manual Graph requests or Graph PowerShell procedures here.
 PowerShell code-block labels mean **Windows terminal syntax**, not another SDK.
 
@@ -16,12 +17,53 @@ controls, data classification, exact API permissions and delegated/app-only
 access, credential custody and acceptance tests.
 
 **IT opens Entra admin center > Entra ID > Agents > Agent blueprints.**
-Search the few existing blueprints and choose:
+Search the few existing blueprints, or use the command-line lookup below,
+then choose:
 
 | Decision | What IT records | Why |
 |---|---|---|
 | Reuse | Exact display name, application/client ID, application object ID, BlueprintPrincipal object ID | Same purpose, environment, acceptable inherited access and credential custody |
 | Create | Approved new family name, owner/sponsor and access requirements | Existing families do not meet those boundaries |
+
+**Command-line discovery: Azure CLI, not A365 CLI.** The verified A365 CLI
+`1.1.226` has no standalone blueprint search/list command.
+`a365 query-entra blueprint-scopes` reports permissions for an already
+selected blueprint; it does not search for candidates. Do not use
+`a365 setup blueprint` for read-only discovery: it can create/change objects.
+
+**First complete the tenant sign-in and tenant-ID verification in Step 2,**
+then return here. Do not search an unverified cached tenant.
+Replace `portfolio-review` with the desired display-name prefix:
+
+```powershell
+az ad app list --all --display-name "portfolio-review" --output json
+```
+
+This searches application registrations, including blueprints; it can also
+return ordinary applications. **Only consider entries whose `@odata.type`
+is `#microsoft.graph.agentIdentityBlueprint`.** From the chosen entry,
+record `displayName`, `appId` (application/client ID) and `id` (application
+object ID). `--all` follows all result pages; omit `--display-name` to inspect
+all applications if the family name is unknown.
+See Microsoft's [List applications reference](https://learn.microsoft.com/en-us/graph/api/application-list?view=graph-rest-1.0)
+for the blueprint type marker.
+
+Find that blueprint's tenant principal using its **`appId`, not its `id`**:
+
+```powershell
+az ad sp list --all --filter "appId eq '<blueprint-client-id>'" `
+  --query "[].{DisplayName:displayName,ClientId:appId,BlueprintPrincipalObjectId:id}" `
+  --output table
+```
+
+Replace `<blueprint-client-id>` with the selected entry's `appId`; record
+the returned `BlueprintPrincipalObjectId`. Both lookups are read-only:
+they do not create identities, credentials or consent. Use IAM-approved
+directory read access. If either command fails, stop and resolve access or
+context with IAM; an access failure is not evidence that no blueprint exists.
+If the principal is missing, matches are ambiguous, or the type marker is
+absent, stop and verify in Entra before approving reuse; do not pick the
+first name match or create a replacement automatically.
 
 Read permissions, linked children and credentials before approving reuse.
 A shared blueprint credential is **not restricted to one child**.
@@ -32,6 +74,8 @@ unique name such as `portfolio-review-nonprod Blueprint`, and continues to
 steps 2-4. Do not pre-create it in the portal. The approved Step 4
 `a365 setup all` command creates the blueprint and its tenant principal,
 then the child identity and registration. No existing blueprint IDs are needed.
+
+---
 
 ## 2. IT prepares one protected request workspace
 
@@ -90,13 +134,42 @@ can leave partial state.
 `%LOCALAPPDATA%\Microsoft.Agents.A365.DevTools.Cli\logs\`, under the operator's
 profile, not this request folder. Treat original logs as restricted.
 
-| Command | Why run it | Outcome |
-|---|---|---|
-| `a365 --version` | Confirm the approved CLI | Prints version; creates nothing |
-| `az login --tenant "<tenant-guid>"` | Establish the CLI's prerequisite operator context | Signs in locally; creates no identity objects |
+**Confirm the approved CLI:** `a365 --version` prints its version; creates
+nothing.
 
-Azure CLI is used only for login here and the **read-only client lookup**
-in Step 3, not a second provisioning procedure.
+**Get your `tenantId` before Step 3.** IT uses the approved tenant's
+`.onmicrosoft.com` domain for the first login, so the GUID is not required
+in advance. Replace `contoso.onmicrosoft.com` below with that real domain.
+If neither the domain nor GUID is known, open **Entra admin center >
+Entra ID > Overview**, select the intended organization using the directory
+switcher, and copy its **Primary domain** or **Tenant ID**. `--tenant`
+accepts either.
+
+```powershell
+az login --tenant "contoso.onmicrosoft.com" --allow-no-subscriptions
+az account show --query tenantId --output tsv
+```
+
+**Why/outcome:** `az login` signs IT into the named tenant and establishes
+local CLI context; `--allow-no-subscriptions` permits tenant-level sign-in
+without an Azure subscription. `az account show` prints the selected
+context's tenant GUID; it is read-only. Neither command creates identities.
+
+**Example output from the second command (illustrative, not your tenant):**
+
+```text
+11111111-2222-3333-4444-555555555555
+```
+
+Compare the returned GUID with **Entra ID > Overview > Tenant ID** in the
+approved directory. Record that verified value in Jira and use it as
+`tenantId` in Step 3, not a subscription ID or directory display name.
+If either command fails, the result is empty, or the tenant does not match,
+stop and resolve the operator context with IAM; do not use a cached default
+or proceed to setup.
+
+Azure CLI is used only for login and **read-only blueprint, principal,
+tenant and client lookups** in Steps 1-3, not a second provisioning procedure.
 The workstation needs the CLI's approved .NET/Azure CLI/PowerShell-module
 prerequisites; operators do not run the underlying Graph modules themselves.
 Do not bypass failed requirements or auto-approve extra clients/consent.
@@ -104,6 +177,8 @@ Do not bypass failed requirements or auto-approve extra clients/consent.
 IT needs Agent ID creation/management authority. Secret creation requires
 Agent ID Administrator or higher; the CLI's tenant-wide consent path expects
 Global Administrator. Separate approval and consent roles as policy requires.
+
+---
 
 ## 3. IT creates the CLI configuration from this template
 
@@ -134,8 +209,9 @@ file; IT assembles this request's input from the template and approved settings.
    A365 CLI has no standalone client-ID lookup command.
 
 2. Copy the JSON below into a text editor.
-3. Replace `<cli-client-app-id>` with the ID from item 1 and the tenant/name
-   placeholders using the sources in the table.
+3. Replace `<cli-client-app-id>` with the ID from item 1, `<tenant-guid>`
+   with the verified tenant ID from Step 2, and the name placeholders using
+   the sources in the table.
 4. Save as `C:\A365-Requests\A365-1042\a365.config.json`, not
    `a365.config.json.txt`. Run Step 4 from this same folder.
 
@@ -163,7 +239,7 @@ state; do not recreate the workspace or overwrite it with the starter template.
 
 | Parameter | Source and exact use |
 |---|---|
-| `tenantId` | Entra ID > Overview > Tenant ID; must match the approved login |
+| `tenantId` | Step 2: `az account show --query tenantId --output tsv`; verify against Entra ID > Overview > Tenant ID in the approved directory |
 | `clientAppId` | Step 3, item 1: ID returned for the approved Microsoft Agent 365 CLI public client; **not** a service principal object ID or blueprint/child ID |
 | `agentBlueprintDisplayName` | Create: approved new name from Jira. Reuse: exact existing name from step 1 |
 | `agentIdentityDisplayName` | New runtime name approved in Jira; a same-name child under that blueprint is reused |
@@ -197,6 +273,8 @@ The empty custom list above is valid only when no custom family permissions
 are required. For an existing family, obtain its complete approved custom
 list and `ToolingManifest.json` from IT's owner: omitted custom entries can
 be removed by full setup.
+
+---
 
 ## 4. IT previews, approves and applies
 
@@ -257,11 +335,50 @@ Pending consent/action-required messages mean the work is **not complete**.
 Setup is not transactional: preserve partial state and inspect actual objects
 before retrying. Do not delete a shared blueprint to recover one request.
 
+---
+
 ## 5. IT adds approved family-wide delegated permissions, if needed
 
 Skip this step when no additional business access is approved.
-Example: the existing Portfolio API exposes delegated scope `Portfolio.Read`.
-Run in the same workspace:
+Run only the approved examples, in the same workspace.
+
+### Microsoft Graph: read calendars with `Calendars.Read`
+
+**Why:** allow the agent to read the signed-in user's calendar events.
+The exact delegated scope is **`Calendars.Read`**, not `Calendar.Read`.
+
+**Preview:**
+
+```powershell
+a365 setup permissions custom --resource-app-id "00000003-0000-0000-c000-000000000000" `
+  --scopes "Calendars.Read" --dry-run
+```
+
+**After approval:**
+
+```powershell
+a365 setup permissions custom --resource-app-id "00000003-0000-0000-c000-000000000000" `
+  --scopes "Calendars.Read"
+```
+
+**Parameters:** `00000003-0000-0000-c000-000000000000` is Microsoft Graph's
+fixed resource application ID, **not** the CLI client ID or blueprint ID.
+The CLI's `custom` command supports Graph as well as custom resource APIs;
+`--scopes` specifies the delegated permission name.
+
+**Outcome:** ensures the Graph resource SP, configures eligible `allAllowed`
+inheritance for scopes and roles, and creates/merges tenant-wide delegated
+consent on the BlueprintPrincipal, subject to administrator approval. No new
+child, mailbox or calendar is created. Pending consent means access is not
+complete; verify in Step 6.
+
+This does **not** grant calendar writes or app-only access to every mailbox.
+The runtime still needs its approved user-delegated sign-in/token flow;
+the S2S telemetry configuration alone does not provide Graph calendar access.
+
+### Custom API: `Portfolio.Read`
+
+The existing Portfolio API exposes delegated scope `Portfolio.Read`.
 
 ```powershell
 a365 setup permissions custom --resource-app-id "<Portfolio-API-application-id>" `
@@ -278,17 +395,29 @@ a365 setup permissions custom --resource-app-id "<Portfolio-API-application-id>"
 **Why:** authorize approved family-wide API access.
 **Parameters:** resource **application/client ID**, not its SP object ID;
 `--scopes` accepts comma-separated delegated scope names.
-**Outcome:** ensures resource SP, adds blueprint scope declaration, creates/
-merges tenant-wide delegated consent on the BlueprintPrincipal, and configures
+**Outcome:** ensures resource SP, creates/merges tenant-wide delegated
+consent on the BlueprintPrincipal, and configures
 eligible `allAllowed` inheritance for scopes and roles. No new child is created.
 Insufficient authority leaves consent pending.
 
-Also merge the following field into the existing `a365.config.json`, preserving
-other approved entries so a future full setup does not remove this access:
+### Retain approved permissions for later setup
+
+Also merge the approved entries into the existing `a365.config.json`,
+preserving other approved resources/scopes so a future full setup retains
+the intended access. The example below shows **both** approved resources;
+for Graph-only access, keep only the Graph entry; for custom-only access,
+keep only the Portfolio entry. Do not add an unapproved permission.
+If a resource already has an entry, merge its scopes into that entry;
+do not duplicate `resourceAppId` values.
 
 ```json
 {
   "customBlueprintPermissions": [
+    {
+      "resourceAppId": "00000003-0000-0000-c000-000000000000",
+      "resourceName": "Microsoft Graph",
+      "scopes": ["Calendars.Read"]
+    },
     {
       "resourceAppId": "<Portfolio-API-application-id>",
       "resourceName": "Portfolio API",
@@ -298,10 +427,12 @@ other approved entries so a future full setup does not remove this access:
 }
 ```
 
-This is **not** a child-only grant or an application-role assignment command.
+These are **not** child-only grants or application-role assignment commands.
 If those are required, return the ticket to IAM's specialist process; do not
 broaden family permissions as a workaround. This guide intentionally does
 not introduce another toolchain for that exception.
+
+---
 
 ## 6. IT verifies and hands off
 
@@ -373,6 +504,8 @@ a365 setup blueprint --no-endpoint
 Run using the approved configuration. This creates/reuses the blueprint and
 principal and performs credential/Graph configuration; `--no-endpoint` does
 not suppress permissions. It is **not needed in addition to normal full setup**.
+
+---
 
 ## 7. Developer wires the issued identity; both teams validate
 
